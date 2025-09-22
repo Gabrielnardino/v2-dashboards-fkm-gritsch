@@ -9,6 +9,100 @@ def clean_col_names(df):
     df.columns = new_cols
     return df
 
+def limpar_dados_combustivel(df):
+    """Padroniza os tipos de combustível"""
+    if 'TP.Comb' not in df.columns:
+        return df
+    
+    # Converter para string e limpar espaços
+    df['TP.Comb'] = df['TP.Comb'].astype(str).str.strip().str.upper()
+    
+    # Mapeamento para padronização
+    mapeamento_combustivel = {
+        'GASOLINA': 'Gasolina',
+        'GASOLINA E ETANOL': 'Gasolina',
+        'GASOLINAEEETANOL': 'Gasolina',
+        'GASOLINAEEETANOL': 'Gasolina',
+        'ETANOL': 'Gasolina',
+        'DIESEL': 'Diesel',
+        'DÍESEL': 'Diesel',
+        'DIESEL S10': 'Diesel',
+        'DIESEL S500': 'Diesel'
+    }
+    
+    # Aplicar mapeamento
+    df['TP.Comb'] = df['TP.Comb'].replace(mapeamento_combustivel)
+    
+    # Para valores não mapeados que contenham "GASOLINA" ou "ETANOL"
+    mask_gasolina = df['TP.Comb'].str.contains('GASOLINA|ETANOL', na=False)
+    df.loc[mask_gasolina, 'TP.Comb'] = 'Gasolina'
+    
+    # Para valores não mapeados que contenham "DIESEL"
+    mask_diesel = df['TP.Comb'].str.contains('DIESEL|DÍESEL', na=False)
+    df.loc[mask_diesel, 'TP.Comb'] = 'Diesel'
+    
+    return df
+
+def limpar_dados_tp_rota(df):
+    """Padroniza os tipos de rota"""
+    if 'TP.Rota' not in df.columns:
+        return df
+    
+    df['TP.Rota'] = df['TP.Rota'].astype(str).str.strip()
+    
+    # Mapeamento para padronização
+    mapeamento_rota = {
+        'urbano': 'Urbano',
+        'Urbano': 'Urbano',
+        'rodoviário': 'Rodoviário',
+        'Rodoviário': 'Rodoviário',
+        'urbano e rodoviário': 'Urbano e Rodoviário',
+        'Urbano e Rodoviário': 'Urbano e Rodoviário',
+        'Urbano E Rodoviário': 'Urbano e Rodoviário'
+    }
+    
+    df['TP.Rota'] = df['TP.Rota'].replace(mapeamento_rota)
+    return df
+
+def limpar_dados_grupo_veiculo(df):
+    """Padroniza e agrupa os tipos de veículo em 4 categorias"""
+    if 'Grupo Veículo' not in df.columns:
+        return df
+    
+    # Converter para string, limpar espaços e padronizar
+    df['Grupo Veículo'] = df['Grupo Veículo'].astype(str).str.strip()
+    
+    # Criar nova coluna com grupos padronizados
+    def classificar_veiculo(grupo):
+        if pd.isna(grupo) or grupo == 'nan':
+            return 'Outros'
+        
+        grupo_clean = str(grupo).upper().strip()
+        
+        # Verificar caminhões (qualquer coisa que contenha "CAMINHAO" ou "CAMINHÃO")
+        if 'CAMINHÃO' in grupo_clean or 'CAMINHAO' in grupo_clean:
+            return 'Caminhão'
+        
+        # Verificar tipos específicos
+        elif grupo_clean == 'KOMBI':
+            return 'Médio'
+        elif grupo_clean == 'MOTO':
+            return 'Leve'
+        elif grupo_clean == 'LEVE':
+            return 'Leve'
+        elif grupo_clean in ['MÉDIO', 'MEDIO']:
+            return 'Médio'
+        elif grupo_clean == 'PESADO':
+            return 'Pesado'
+        else:
+            print(f"Valor não classificado: '{grupo}' -> '{grupo_clean}'")
+            return 'Outros'
+    
+    # Aplicar a classificação
+    df['Grupo Veículo'] = df['Grupo Veículo'].apply(classificar_veiculo)
+    
+    return df
+
 @st.cache_data(ttl=3600)
 def get_data():
     file_path = os.path.join('data', 'raw', 'Evolução.xlsb')
@@ -51,7 +145,14 @@ def get_data():
         df_bd.dropna(subset=['data'], inplace=True)
         df_bd['valor'] = pd.to_numeric(df_bd['valor'], errors='coerce').fillna(0)
         df_bd['ano'] = df_bd['data'].dt.year
+        df_bd = df_bd[df_bd['ano'] == 2025]
         df_bd['mes_ano'] = df_bd['data'].dt.strftime('%Y-%m')
+        
+        # APLICAR LIMPEZA DOS DADOS AQUI (ANTES DAS OUTRAS TRANSFORMAÇÕES)
+        df_bd = limpar_dados_combustivel(df_bd)
+        df_bd = limpar_dados_tp_rota(df_bd)
+        df_bd = limpar_dados_grupo_veiculo(df_bd)
+        
         df_bd['Idade'] = datetime.now().year - pd.to_numeric(df_bd['Ano'], errors='coerce')
 
         for col in ['natureza_correta', 'regiao', 'filial', 'contrato']:
@@ -69,8 +170,9 @@ def get_data():
             'Dias Úteis' # Garantindo que a coluna seja passada
         ]
         df_final = df_bd[[col for col in colunas_finais if col in df_bd.columns]].copy()
-
+    
         return df_final
+
 
     except Exception as e:
         st.error(f"Ocorreu um erro crítico ao processar a planilha: {e}")

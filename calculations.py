@@ -5,6 +5,49 @@ import plotly.express as px
 import plotly.graph_objects as go
 from dateutil.relativedelta import relativedelta
 
+st.markdown("""
+<style>
+/* Estilo principal do card */
+.vehicle-group-card {
+    background-color: #1a1a2e; /* Cor de fundo escura */
+    border-radius: 10px;      /* Bordas arredondadas */
+    padding: 20px;            /* Espaçamento interno */
+    margin-bottom: 20px;      /* Espaço entre os cards */
+    border: 1px solid #4a4e69; /* Borda sutil */
+    box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2); /* Sombra para dar profundidade */
+}
+/* Título do card (Ex: 🚗 Leves) */
+.vehicle-group-title {
+    font-size: 24px;
+    font-weight: bold;
+    color: #e0e1dd; /* Cor clara para o título */
+    margin-bottom: 15px;
+}
+/* Valor principal (Ex: 89 Veículos) */
+.vehicle-group-value {
+    font-size: 28px;
+    font-weight: bold;
+    color: #00a8e8; /* Cor de destaque (azul) */
+    margin-bottom: 20px;
+}
+/* Subtítulo para o ranking */
+.vehicle-group-ranking-title {
+    font-size: 16px;
+    color: #a9a9a9; /* Cinza claro */
+    border-top: 1px solid #4a4e69; /* Linha separadora */
+    padding-top: 15px;
+    margin-bottom: 10px;
+}
+/* Cada item do ranking */
+.vehicle-group-ranking-item {
+    font-size: 16px;
+    color: #e0e1dd;
+    margin-bottom: 5px;
+    padding-left: 10px;
+}
+</style>
+""", unsafe_allow_html=True)
+
 def calcular_kpis_performance(df_historico, ano_selecionado, mes_selecionado, coluna_custo):
     if mes_selecionado == 'Todos' or ano_selecionado == 'Todos':
         return None
@@ -654,30 +697,569 @@ def exibir_analise_anual_completa(df_filtrado, titulo_aba):
     )
 
 def exibir_dashboard_executivo(df_filtrado, titulo_principal):
-    """Dashboard executivo com KPIs de alto nível"""
+    """Dashboard executivo com KPIs de alto nível aprimorado"""
     st.subheader(f"👔 Dashboard Executivo - {titulo_principal}")
     
-    # KPIs executivos em destaque
-    col1, col2, col3, col4, col5 = st.columns(5)
-    
+    # Cálculos base
     custo_total = df_filtrado['custo_frota_total'].sum()
-    qtd_veiculos = df_filtrado['Placa'].nunique()
-    qtd_regioes = df_filtrado['regiao'].nunique()
-    qtd_filiais = df_filtrado['filial'].nunique()
-    custo_medio_veiculo = custo_total / qtd_veiculos if qtd_veiculos > 0 else 0
+    custo_combustivel = df_filtrado['custo_combustivel'].sum()
+    custo_arla = df_filtrado['custo_arla'].sum()
+    custo_manutencao = df_filtrado['custo_manutencao_geral'].sum()
+    custo_lataria = df_filtrado['custo_lataria_pintura'].sum()
+    custo_pneus = df_filtrado['custo_rodas_pneus'].sum()
     
-    with col1:
-        st.metric("💰 Investimento Total", f"R$ {custo_total:,.0f}")
-    with col2:
-        st.metric("🚛 Frota Ativa", f"{qtd_veiculos} veículos")
-    with col3:
-        st.metric("🌍 Regiões Atendidas", f"{qtd_regioes} regiões")
-    with col4:
-        st.metric("🏢 Filiais Ativas", f"{qtd_filiais} filiais")
-    with col5:
-        st.metric("📊 Custo Médio/Veículo", f"R$ {custo_medio_veiculo:,.0f}")
+    # Período de dados
+    data_min = df_filtrado['data'].min()
+    data_max = df_filtrado['data'].max()
+    periodo_str = f"{data_min.strftime('%m/%Y')} até {data_max.strftime('%m/%Y')}"
     
-    # Análise de distribuição
+    # CSS aprimorado com fontes maiores e mais cores
+    st.markdown("""
+    <style>
+    .exec-card {
+        background: linear-gradient(145deg, #1a1a1a 0%, #2d2d2d 50%, #1e1e1e 100%);
+        border-radius: 16px;
+        padding: 24px;
+        margin-bottom: 24px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        box-shadow: 
+            0 10px 25px -5px rgba(0, 0, 0, 0.4),
+            0 4px 6px -2px rgba(0, 0, 0, 0.2),
+            inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .exec-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    }
+
+    .exec-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 
+            0 20px 40px -5px rgba(0, 0, 0, 0.5),
+            0 8px 16px -4px rgba(0, 0, 0, 0.3),
+            inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        border-color: rgba(0, 123, 255, 0.3);
+    }
+
+    .exec-title {
+        font-size: 18px;
+        font-weight: 600;
+        color: #f0f0f0;
+        margin-bottom: 16px;
+        letter-spacing: -0.01em;
+        line-height: 1.4;
+        text-transform: uppercase;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+
+    .exec-value {
+        font-size: 32px;
+        font-weight: 700;
+        color: #0ea5e9;
+        margin-bottom: 12px;
+        letter-spacing: -0.02em;
+        line-height: 1.2;
+        text-shadow: 0 2px 4px rgba(14, 165, 233, 0.3);
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+
+    .exec-detail.1 {
+        font-size: 15px;
+        color: #c1c1c1;
+        margin: 8px 0;
+        font-weight: 500;
+        line-height: 1.5;
+        letter-spacing: 0.01em;
+        text-shadow: 0 1px 2px rgba(245, 158, 11, 0.3);
+    }
+    .exec-detail.2 {
+        font-size: 15px;
+        color: #c1c1c1;
+        margin: 8px 0;
+        font-weight: 500;
+        line-height: 1.5;
+        letter-spacing: 0.01em;
+        text-shadow: 0 1px 2px rgba(25, 180, 11, 90);
+    }
+    .exec-detail.3 {
+        font-size: 15px;
+        color: #c1c1c1;
+        margin: 8px 0;
+        font-weight: 500;
+        line-height: 1.5;
+        letter-spacing: 0.01em;
+        text-shadow: 0 1px 2px rgba(145, 95, 11, 10);
+    }
+    .exec-detail.4 {
+        font-size: 15px;
+        color: #c1c1c1;
+        margin: 8px 0;
+        font-weight: 500;
+        line-height: 1.5;
+        letter-spacing: 0.01em;
+        text-shadow: 0 1px 2px rgba(245, 158, 11, 0.3);
+    }
+
+    .exec-detail-highlight {
+        font-size: 15px;
+        color: #22c55e;
+        margin: 8px 0;
+        font-weight: 600;
+        line-height: 1.5;
+        letter-spacing: 0.01em;
+        text-shadow: 0 1px 2px rgba(34, 197, 94, 0.3);
+    }
+
+    .exec-detail-warning {
+        font-size: 15px;
+        color: #f59e0b;
+        margin: 8px 0;
+        font-weight: 600;
+        line-height: 1.5;
+        letter-spacing: 0.01em;
+        text-shadow: 0 1px 2px rgba(245, 158, 11, 0.3);
+    }
+
+    .exec-projection {
+        background: linear-gradient(145deg, #1e3a28 0%, #2d5a3d 50%, #1a3324 100%);
+        border: 1px solid rgba(34, 197, 94, 0.2);
+        position: relative;
+    }
+
+    .exec-projection::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, rgba(34, 197, 94, 0.4), transparent);
+    }
+
+    .exec-projection:hover {
+        border-color: rgba(34, 197, 94, 0.4);
+        box-shadow: 
+            0 20px 40px -5px rgba(0, 0, 0, 0.5),
+            0 8px 16px -4px rgba(34, 197, 94, 0.2),
+            inset 0 1px 0 rgba(34, 197, 94, 0.1);
+    }
+
+    .exec-projection .exec-value {
+        color: #22c55e;
+        text-shadow: 0 2px 4px rgba(34, 197, 94, 0.4);
+    }
+
+    .exec-rank {
+        font-size: 13px;
+        color: #fbbf24;
+        font-weight: 700;
+        margin: 4px 0;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        text-shadow: 0 1px 2px rgba(251, 191, 36, 0.4);
+    }
+
+    .veiculo-card {
+        background: linear-gradient(145deg, #1a1a1a 0%, #2d2d2d 50%, #1e1e1e 100%);
+        border-radius: 14px;
+        padding: 20px;
+        margin: 16px 0;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        box-shadow: 
+            0 8px 20px -4px rgba(0, 0, 0, 0.3),
+            0 4px 6px -1px rgba(0, 0, 0, 0.1),
+            inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .veiculo-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
+    }
+
+    .veiculo-card:hover {
+        transform: translateY(-1px);
+        box-shadow: 
+            0 12px 25px -4px rgba(0, 0, 0, 0.4),
+            0 6px 10px -2px rgba(0, 0, 0, 0.2),
+            inset 0 1px 0 rgba(255, 255, 255, 0.08);
+        border-color: rgba(0, 123, 255, 0.2);
+    }
+
+    .veiculo-title {
+        font-size: 20px;
+        font-weight: 700;
+        color: #0ea5e9;
+        margin-bottom: 16px;
+        text-align: center;
+        letter-spacing: -0.01em;
+        line-height: 1.3;
+        text-shadow: 0 2px 4px rgba(14, 165, 233, 0.3);
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+
+    .veiculo-item {
+        font-size: 15px;
+        color: #e5e5e5;
+        margin: 10px 0;
+        font-weight: 500;
+        line-height: 1.6;
+        letter-spacing: 0.01em;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 4px 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .veiculo-item:last-child {
+        border-bottom: none;
+        margin-bottom: 0;
+    }
+
+    .veiculo-value {
+        color: #22c55e;
+        font-weight: 700;
+        text-shadow: 0 1px 2px rgba(34, 197, 94, 0.3);
+        font-variant-numeric: tabular-nums;
+    }
+
+    .veiculo-count {
+        color: #f59e0b;
+        font-weight: 700;
+        text-shadow: 0 1px 2px rgba(245, 158, 11, 0.3);
+        font-variant-numeric: tabular-nums;
+    }
+
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .exec-card,
+    .veiculo-card {
+        animation: fadeInUp 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    }
+
+    @media (max-width: 768px) {
+        .exec-card,
+        .veiculo-card {
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+        
+        .exec-title {
+            font-size: 16px;
+        }
+        
+        .exec-value {
+            font-size: 28px;
+        }
+        
+        .veiculo-title {
+            font-size: 18px;
+        }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .exec-card,
+        .veiculo-card {
+            animation: none;
+            transition: none;
+        }
+        
+        .exec-card:hover,
+        .veiculo-card:hover {
+            transform: none;
+        }
+    }
+
+    .exec-card:focus-within,
+    .veiculo-card:focus-within {
+        outline: 2px solid #0ea5e9;
+        outline-offset: 2px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+   
+    
+    # Primeira linha - Cards principais
+    cols1 = st.columns(2)
+    
+    with cols1[0]:
+        st.markdown(f"""
+        <div class="exec-card">
+            <div class="exec-title">💰 Custo Total da Frota</div>
+            <div class="exec-value">R$ {custo_total:,.2f}</div>
+            <div class="exec-detail">Período: {periodo_str}</div>
+            <div class="exec-detail-highlight">⛽ Combustível: R$ {custo_combustivel:,.2f}</div>
+            <div class="exec-detail-warning">🔧 Manutenção: R$ {custo_manutencao:,.2f}</div>
+            <div class="exec-detail.1">🎨 Lataria: R$ {custo_lataria:,.2f}</div>
+            <div class="exec-detail.2">🛞 Pneus: R$ {custo_pneus:,.2f}</div>
+            <div class="exec-detail.3">💧 Arla: R$ {custo_arla:,.2f}</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with cols1[1]:
+        # Projeção anual
+        meses_dados = df_filtrado['mes_ano'].nunique()
+        projecao_anual = (custo_total / meses_dados) * 12 if meses_dados > 0 else 0
+        projecao_combustivel = (custo_combustivel / meses_dados) * 12 if meses_dados > 0 else 0
+        projecao_manutencao = (custo_manutencao / meses_dados) * 12 if meses_dados > 0 else 0
+        projecao_lataria = (custo_lataria / meses_dados) * 12 if meses_dados > 0 else 0
+        projecao_pneus = (custo_pneus / meses_dados) * 12 if meses_dados > 0 else 0
+        projecao_arla = (custo_arla / meses_dados) * 12 if meses_dados > 0 else 0
+        
+        st.markdown(f"""
+        <div class="exec-card exec-projection">
+            <div class="exec-title">📈 Estimativa Anual</div>
+            <div class="exec-value">R$ {projecao_anual:,.2f}</div>
+            <div class="exec-detail">Base: {meses_dados} meses de dados</div>
+            <div class="exec-detail-highlight">⛽ Combustível: R$ {projecao_combustivel:,.2f}</div>
+            <div class="exec-detail-warning">🔧 Manutenção: R$ {projecao_manutencao:,.2f}</div>
+            <div class="exec-detail">🎨 Lataria: R$ {projecao_lataria:,.2f}</div>
+            <div class="exec-detail">🛞 Pneus: R$ {projecao_pneus:,.2f}</div>
+            <div class="exec-detail">💧 Arla: R$ {projecao_arla:,.2f}</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("""<style>
+    /* Aumenta o tamanho do NÚMERO da métrica */
+    [data-testid="stMetricValue"] {
+        font-size: 32px; 
+    }
+    /* Aumenta o tamanho do TÍTULO da métrica */
+    [data-testid="stMetricLabel"] {
+        font-size: 18px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # --- Analise Resumida por Filial ---
+
+    # Supondo que essas variáveis venham dos seus widgets de filtro (st.selectbox, etc.)
+    ano_selecionado = 'Todos' # Substitua pelo seu seletor de ano
+    mes_selecionado = 'Todos' # Substitua pelo seu seletor de mês
+    regiao_selecionada = 'Todos' # Substitua pelo seu seletor de região
+    filial_selecionada = 'Todos' # Substitua pelo seu seletor de filial
+
+    if ('filial' in df_filtrado.columns and not df_filtrado.empty and
+        ano_selecionado == 'Todos' and mes_selecionado == 'Todos' and
+        regiao_selecionada == 'Todos' and filial_selecionada == 'Todos'):
+
+        st.subheader("Análise Resumida por Filial")
+
+        # --- PARTE 1: ORDENAÇÃO DAS FILIAIS POR GASTO (NOVA LÓGICA) ---
+
+        # Primeiro, calculamos o custo total para todo o DataFrame
+        colunas_custo = [
+            'custo_combustivel', 'custo_manutencao_geral', 'custo_arla',
+            'custo_lataria_pintura', 'custo_rodas_pneus'
+        ]
+        df_filtrado['custo_total'] = df_filtrado[colunas_custo].sum(axis=1)
+
+        # Agora, agrupamos por filial, somamos o custo total e ordenamos do maior para o menor
+        gastos_por_filial = df_filtrado.groupby('filial')['custo_total'].sum().sort_values(ascending=False)
+
+        # Pegamos a lista de filiais JÁ ORDENADA
+        filiais_ordenadas = gastos_por_filial.index
+        
+        # Define o número de colunas para os cards (ex: 3 cards por linha)
+        num_colunas = 3
+        cols = st.columns(num_colunas)
+
+        # O loop agora usa a lista de filiais ordenadas
+        for i, filial_nome in enumerate(filiais_ordenadas):
+            with cols[i % num_colunas]:
+                df_da_filial = df_filtrado[df_filtrado['filial'] == filial_nome]
+                
+                # Cálculos dos valores (agora podemos pegar o total direto da nossa série pré-calculada)
+                custo_total_filial = gastos_por_filial[filial_nome]
+                custo_combustivel = df_da_filial['custo_combustivel'].sum()
+                custo_manut_geral = df_da_filial['custo_manutencao_geral'].sum()
+                custo_lataria = df_da_filial['custo_lataria_pintura'].sum()
+                custo_pneus = df_da_filial['custo_rodas_pneus'].sum()
+                custo_arla = df_da_filial['custo_arla'].sum()
+                num_veiculos = df_da_filial['Placa'].nunique()
+
+                # Exibição do card
+                st.markdown(f"""
+                <div class="exec-card">
+                    <div class="exec-title">🏢 Resumo: {filial_nome}</div>
+                    <div class="exec-value">R$ {custo_total_filial:,.2f}</div>
+                    <div class="exec-detail">Total de {num_veiculos} veículos</div>
+                    <div class="exec-detail-highlight">⛽ Combustível: R$ {custo_combustivel:,.2f}</div>
+                    <div class="exec-detail-warning">🔧 Manutenção: R$ {custo_manut_geral:,.2f}</div>
+                    <div class="exec-detail">🎨 Lataria: R$ {custo_lataria:,.2f}</div>
+                    <div class="exec-detail">🛞 Pneus: R$ {custo_pneus:,.2f}</div>
+                    <div class="exec-detail">💧 Arla: R$ {custo_arla:,.2f}</div>
+                </div>
+                """, unsafe_allow_html=True)
+
+        st.markdown("---") # Adiciona um separador visual
+            
+        try:
+            # Lista dos grupos que queremos analisar, com seus respectivos emojis
+            grupos_para_analise = {
+                'Leve': '🚗',
+                'Médio': '🚗',
+                'Pesado': ' 🚚',
+                'Caminhão': '🚛'
+            }
+            
+            st.subheader("Análise da Frota por Grupo")
+
+            # Loop para criar um card para cada grupo de veículo
+            for grupo, emoji in grupos_para_analise.items():
+                
+                # Filtra o DataFrame para o grupo atual
+                df_grupo = df_filtrado[df_filtrado['Grupo Veículo'] == grupo]
+                
+                # Só continua se houver dados para o grupo
+                if not df_grupo.empty:
+                    
+                    # --- CÁLCULOS PARA O CARD ---
+                    
+                    # 1. Total de veículos (placas únicas) no grupo
+                    total_veiculos_grupo = df_grupo['Placa'].nunique()
+                    
+                    # 2. LÓGICA DE CONTAGEM CORRIGIDA para Top 3 Modelos
+                    # Primeiro, removemos as duplicatas de placas, mantendo a primeira ocorrência do modelo associado
+                    df_veiculos_unicos = df_grupo.drop_duplicates(subset=['Placa'], keep='first')
+                    # Agora, contamos os modelos a partir dos veículos únicos
+                    top3_modelos = df_veiculos_unicos['Modelo'].value_counts().nlargest(3)
+                    
+                    # --- GERAÇÃO DO HTML PARA O RANKING ---
+                    
+                    html_top_modelos = ""
+                    emojis_ranking = ['🥇', '🥈', '🥉'] # Emojis para o pódio
+                    
+                    if not top3_modelos.empty:
+                        for i, (modelo, contagem) in enumerate(top3_modelos.items()):
+                            # Limita o tamanho do nome do modelo para não quebrar o layout
+                            modelo_short = modelo[:30] + '...' if len(modelo) > 30 else modelo
+                            html_top_modelos += f'<div class="vehicle-group-ranking-item">{emojis_ranking[i]} {modelo_short} ({contagem} veículos)</div>'
+                    else:
+                        html_top_modelos = '<div class="vehicle-group-ranking-item">Nenhum modelo registrado.</div>'
+
+                    # --- MONTAGEM E EXIBIÇÃO DO CARD COMPLETO ---
+                    
+                    st.markdown(f"""
+                    <div class="vehicle-group-card">
+                        <div class="vehicle-group-title">{emoji} {grupo}s</div>
+                        <div class="vehicle-group-value">{total_veiculos_grupo} Veículos</div>
+                        <div class="vehicle-group-ranking-title">Top 3 Modelos:</div>
+                        {html_top_modelos}
+                    </div>
+                    """, unsafe_allow_html=True)
+
+        except KeyError:
+            st.warning("A coluna 'Grupo Veículo' não foi encontrada. O resumo da frota não pode ser exibido.")
+            st.info("Verifique se o nome da coluna no seu DataFrame está correto e se a função de limpeza de dados foi executada.")
+            
+    st.markdown("---")
+    st.subheader("📊 Análise por Grupo de Veículo - Custo Médio Anual")
+    
+    if 'Grupo Veículo' in df_filtrado.columns and len(df_filtrado) > 0:
+        # Calcular custos médios por grupo de veículo
+        analise_veiculo = df_filtrado.groupby('Grupo Veículo').agg({
+            'custo_combustivel': 'mean',
+            'custo_manutencao_geral': 'mean', 
+            'custo_arla': 'mean',
+            'custo_lataria_pintura': 'mean',
+            'custo_rodas_pneus': 'mean',
+            'custo_frota_total': 'mean',
+            'Placa': 'nunique'
+        }).reset_index()
+
+        # Calcular manutenção total
+        analise_veiculo['manut_total_mean'] = (
+            analise_veiculo['custo_manutencao_geral'] + 
+            analise_veiculo['custo_arla'] + 
+            analise_veiculo['custo_lataria_pintura'] + 
+            analise_veiculo['custo_rodas_pneus']
+        )
+
+        # Projeção anual por veículo
+        analise_veiculo['comb_anual'] = analise_veiculo['custo_combustivel'] * 12
+        analise_veiculo['manut_anual'] = analise_veiculo['manut_total_mean'] * 12
+        analise_veiculo['total_anual'] = analise_veiculo['custo_frota_total'] * 12
+
+        # Ordenar por custo total (maior para menor)
+        analise_veiculo = analise_veiculo.sort_values('total_anual', ascending=False)
+
+        cols2 = st.columns(3)
+
+        with cols2[0]:
+            combustivel_html = ""
+            for _, row in analise_veiculo.iterrows():
+                tipo = row['Grupo Veículo']
+                valor = row['comb_anual']
+                qtd = row['Placa']
+                combustivel_html += f'<div class="veiculo-item"><span class="veiculo-value">{tipo}:</span> R$ {valor:,.2f} (<span class="veiculo-count">{qtd} veículos</span>)</div>'
+            
+            st.markdown(f"""
+            <div class="veiculo-card">
+                <div class="veiculo-title">⛽ Combustível Anual</div>
+                {combustivel_html}
+            </div>
+            """, unsafe_allow_html=True)
+
+        with cols2[1]:
+            manutencao_html = ""
+            for _, row in analise_veiculo.iterrows():
+                tipo = row['Grupo Veículo']
+                valor = row['manut_anual']
+                qtd = row['Placa']
+                manutencao_html += f'<div class="veiculo-item"><span class="veiculo-value">{tipo}:</span> R$ {valor:,.2f} (<span class="veiculo-count">{qtd} veículos</span>)</div>'
+            
+            st.markdown(f"""
+            <div class="veiculo-card">
+                <div class="veiculo-title">🔧 Manutenção Total Anual</div>
+                {manutencao_html}
+            </div>
+            """, unsafe_allow_html=True)
+
+        with cols2[2]:
+            total_html = ""
+            for _, row in analise_veiculo.iterrows():
+                tipo = row['Grupo Veículo']
+                valor = row['total_anual']
+                qtd = row['Placa']
+                total_html += f'<div class="veiculo-item"><span class="veiculo-value">{tipo}:</span> R$ {valor:,.2f} (<span class="veiculo-count">{qtd} veículos</span>)</div>'
+            
+            st.markdown(f"""
+            <div class="veiculo-card">
+                <div class="veiculo-title">💰 Custo Total Anual</div>
+                {total_html}
+            </div>
+            """, unsafe_allow_html=True)
+    else:
+        st.error("Dados de Grupo Veículo não encontrados ou DataFrame vazio")
+    
+    # Gráficos mantidos
     st.markdown("---")
     col1, col2 = st.columns(2)
     
@@ -713,3 +1295,5 @@ def exibir_dashboard_executivo(df_filtrado, titulo_principal):
         )
         fig_rota.update_traces(textposition='inside', textinfo='percent+label')
         st.plotly_chart(fig_rota, width='content')
+        
+        
