@@ -4,24 +4,30 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from calculations import *
 from plotly.subplots import make_subplots
 from dateutil.relativedelta import relativedelta
 from src.config.data_provider import get_data
-
-# Adicionar temporariamente no início do app.py, após os imports
+from calculations import (
+    exibir_dashboard_executivo,
+    calcular_kpis_performance,
+    exibir_kpis_em_cartoes,
+    exibir_graficos_performance_avancados,
+    exibir_tendencias_mensais,
+    exibir_kpis_operacionais_visao_geral
+)
 if st.button("🗑️ Limpar Cache"):
     st.cache_data.clear()
     st.rerun()
-
+    
 st.set_page_config(page_title="Dashboard FKM Gritsch", layout="wide", page_icon="🚚")      
+
         
 # --- CARREGAMENTO E FILTROS APRIMORADOS ---
 with st.spinner('🔄 Analisando dados da frota... Por favor, aguarde.'):
     df = get_data()
     # ADICIONAR ESTA LINHA:
     df = df[df['ano'] == 2025] if not df.empty else df
-
+    
 if not df.empty:
     # Preparação dos dados
     df['custo_combustivel_total'] = df['custo_combustivel'] + df['custo_arla']
@@ -33,7 +39,7 @@ if not df.empty:
         st.markdown("Análise da Frota")
         selected = st.radio(
             "📊 Selecione a Análise:", 
-            options=["Dashboard Executivo", "Visão Geral", "Manutenção", "Combustível", "Análise Detalhada"], 
+            options=["Visão Resumida", "Visão Geral", "Manutenção", "Combustível", "Análise Detalhada"], 
             horizontal=False
         )
         
@@ -89,32 +95,34 @@ if not df.empty:
     if filial_selecionada == 'Todos':
         titulo_principal = "Gritsch Transportes - Visão Consolidada"
     else:
-        titulo_principal = f"Filial {filial_selecionada.title()}"
+        titulo_principal = f"Filial {filial_selecionada}"
     
     st.markdown("---")
-
-    # --- LÓGICA PRINCIPAL DAS ABAS APRIMORADA ---
     
-    if selected == "Dashboard Executivo":
+    if selected == "Visão Resumida":
         if df_filtrado.empty:
             st.error("❌ Nenhum dado encontrado para os filtros selecionados.")
         else:
-            exibir_dashboard_executivo(df_filtrado, titulo_principal)
+            exibir_dashboard_executivo(df_filtrado, df, "Resumo da Frota")
             st.markdown("---")
             
-            # Análise regional se aplicável
-            if regiao_selecionada != 'Todos' or len(df_filtrado['regiao'].unique()) > 1:
-                exibir_kpis_regionais(df_filtrado, 'custo_frota_total', regiao_selecionada)
     
     elif selected == "Visão Geral":
         titulo_aba = "Custo Total da Frota"
         st.header(f"📊 Visão Geral dos Custos - {titulo_principal}")
-        
+
         if df_filtrado.empty:
             st.error("❌ Nenhum dado encontrado para os filtros selecionados.")
         else:
+            # Primeiro: Exibir KPIs Operacionais
+            exibir_kpis_operacionais_visao_geral(df_filtrado)
+            st.markdown("---")
+            
+            
+
+            # Segundo: Análise temporal ou por mês específico
             if ano_selecionado == 'Todos':
-                exibir_analise_anual_completa(df_filtrado, titulo_aba)
+                exibir_tendencias_mensais(df_filtrado, titulo_aba)
             else:
                 kpis = calcular_kpis_performance(df, ano_selecionado, mes_selecionado, 'custo_frota_total')
                 if kpis:
@@ -123,66 +131,163 @@ if not df.empty:
                     exibir_graficos_performance_avancados(df, mes_selecionado, kpis, 'custo_frota_total', titulo_aba)
                 else:
                     st.info("ℹ️ Selecione um mês específico para ver a análise de performance mensal.")
-            
+
             st.markdown("---")
             
-            # Análise regional
-            if len(df_filtrado['regiao'].unique()) > 1 or regiao_selecionada != 'Todos':
-                exibir_kpis_regionais(df_filtrado, 'custo_frota_total', regiao_selecionada)
-                st.markdown("---")
-
             # Detalhamento existente aprimorado
             st.subheader("💡 Detalhamento dos Custos por Macro Categoria")
+
+            # --- 1. Cálculos primeiro para deixar o código mais limpo ---
             custo_manutencao_total = df_filtrado['valor'].sum()
             custo_combustivel_total = df_filtrado['custo_combustivel_total'].sum()
-            
-            # Métricas adicionais
+            custo_geral_total = custo_manutencao_total + custo_combustivel_total
+
+            # Calcula os percentuais de forma segura
+            perc_manutencao = (custo_manutencao_total / custo_geral_total * 100) if custo_geral_total > 0 else 0
+            perc_combustivel = (custo_combustivel_total / custo_geral_total * 100) if custo_geral_total > 0 else 0
+
+            # --- 2. Exibição dos cards com o nosso CSS personalizado ---
             col1, col2, col3 = st.columns(3)
+
             with col1:
-                st.metric("🛠️ Manutenção", f"R$ {custo_manutencao_total:,.2f}", 
-                         f"{custo_manutencao_total/(custo_manutencao_total+custo_combustivel_total)*100:.1f}%" if (custo_manutencao_total+custo_combustivel_total) > 0 else "0%")
+                st.markdown(f"""
+                <div class="custom-card card-green" style="min-height: 160px;">
+                    <div class="card-title">⛽ Combustível</div>
+                    <div class="card-value">R$ {custo_combustivel_total:,.2f}</div>
+                    <div class="card-detail">Representa {perc_combustivel:.1f}% do total</div>
+                </div>
+                """, unsafe_allow_html=True)
+
             with col2:
-                st.metric("⛽ Combustível + Arla", f"R$ {custo_combustivel_total:,.2f}",
-                         f"{custo_combustivel_total/(custo_manutencao_total+custo_combustivel_total)*100:.1f}%" if (custo_manutencao_total+custo_combustivel_total) > 0 else "0%")
+                st.markdown(f"""
+                <div class="custom-card card-orange" style="min-height: 160px;">
+                    <div class="card-title">🛠️ Manutenção</div>
+                    <div class="card-value">R$ {custo_manutencao_total:,.2f}</div>
+                    <div class="card-detail">Representa {perc_manutencao:.1f}% do total</div>
+                </div>
+                """, unsafe_allow_html=True)
+
             with col3:
-                st.metric("💰 Total Geral", f"R$ {custo_manutencao_total+custo_combustivel_total:,.2f}")
-            
-            # Gráficos existentes...
-            dados_grafico_geral = {'Categoria': ['Manutenção', 'Combustível e Arla'], 'Custo': [custo_manutencao_total, custo_combustivel_total]}
-            df_grafico_geral = pd.DataFrame(dados_grafico_geral).sort_values('Custo', ascending=False)
-            cores_geral = ['#007bff', '#28a745']
-            mapa_cores_geral = {'Manutenção': cores_geral[0], 'Combustível e Arla': cores_geral[1]}
-            
-            g_col1, g_col2 = st.columns(2)
-            with g_col1:
-                fig_pie_geral = px.pie(df_grafico_geral, names='Categoria', values='Custo', 
-                                     title='Distribuição Percentual dos Custos', hole=.3, 
-                                     color='Categoria', color_discrete_map=mapa_cores_geral)
-                fig_pie_geral.update_traces(textposition='outside', textinfo='percent+label')
-                fig_pie_geral.update_layout(legend_font_size=14, uniformtext_minsize=12, uniformtext_mode='hide')
-                st.plotly_chart(fig_pie_geral, width='content')
-            
-            with g_col2:
-                fig_bar_geral = px.bar(df_grafico_geral, x='Categoria', y='Custo', text_auto='.2s', 
-                                     title='Comparativo de Custos por Macro Categoria', 
-                                     color='Categoria', color_discrete_map=mapa_cores_geral)
-                fig_bar_geral.update_layout(showlegend=False)
-                fig_bar_geral.update_traces(width=0.4, textangle=0, textposition="outside")
-                fig_bar_geral.update_yaxes(range=[0, df_grafico_geral['Custo'].max() * 1.1])
-                st.plotly_chart(fig_bar_geral, width='content')
+                st.markdown(f"""
+                <div class="custom-card card-blue" style="min-height: 160px;">
+                    <div class="card-title">💰 Total Geral</div>
+                    <div class="card-value">R$ {custo_geral_total:,.2f}</div>
+                    <div class="card-detail">Combustível + Manutenção</div>
+                </div>
+                """, unsafe_allow_html=True)
+
+                        # --- 3. Gráficos Aprimorados: Lógica Condicional para Análise ---
+
+            # Supondo que 'mes_selecionado' é a variável do seu filtro de mês
+            # e 'df_para_grafico' é o dataframe com os filtros gerais (ano, filial, etc.), mas ANTES do filtro de mês.
+
+            if mes_selecionado == 'Todos':
+                # --- VISÃO 1: COMPARATIVO ENTRE MESES (QUANDO "TODOS" ESTÁ SELECIONADO) ---
+                
+                g_col1, g_col2 = st.columns(2)
+                with g_col1:
+                    st.write("##### Evolução Mensal do Custo (Composição)")
+                    # Usa o dataframe com todos os meses para o gráfico de tendência
+                    custos_mensais = df_filtrado.groupby('mes_ano').agg(
+                        Manutenção=('valor', 'sum'),
+                        Combustível=('custo_combustivel_total', 'sum')
+                    ).reset_index()
+                    
+                    fig_evolucao = go.Figure()
+                    fig_evolucao.add_trace(go.Bar(name='Combustível', x=custos_mensais['mes_ano'], y=custos_mensais['Combustível'], marker_color='#28a745'))
+                    fig_evolucao.add_trace(go.Bar(name='Manutenção', x=custos_mensais['mes_ano'], y=custos_mensais['Manutenção'], marker_color='#007bff'))
+                    fig_evolucao.update_layout(barmode='stack', title_text="Custo Mensal (Combustível vs. Manutenção)", yaxis_title="Custo (R$)", xaxis_title="Mês")
+                    st.plotly_chart(fig_evolucao, use_container_width=True)
+
+                with g_col2:
+                    st.write("##### Detalhamento da Composição dos Custos")
+                    tab_comb, tab_manut = st.tabs(["⛽ Combustível", "🛠️ Manutenção"])
+                    with tab_comb:
+                        # (Código da aba de combustível... sem alterações)
+                        df_comb_tipo = df_filtrado.groupby('TP.Comb')['custo_combustivel_total'].sum().reset_index()
+                        fig_pie_comb = px.pie(df_comb_tipo, names='TP.Comb', values='custo_combustivel_total', title='Custo Total por Tipo de Combustível', hole=.4, color='TP.Comb', color_discrete_map={'Diesel': '#28a745', 'Gasolina': '#f97316'})
+                        fig_pie_comb.update_traces(textposition='outside', texttemplate='%{label}<br>R$ %{value:,.2s} (%{percent})')
+                        st.plotly_chart(fig_pie_comb, use_container_width=True)
+                    with tab_manut:
+                        # (Código da aba de manutenção... sem alterações)
+                        dados_manut = {'Categoria': ['Manutenção Geral', 'Rodas e Pneus', 'Lataria e Pintura', 'Arla'], 'Custo': [df_filtrado['custo_manutencao_geral'].sum(), df_filtrado['custo_rodas_pneus'].sum(), df_filtrado['custo_lataria_pintura'].sum(), df_filtrado['custo_arla'].sum()]}
+                        df_manut_tipo = pd.DataFrame(dados_manut)
+                        fig_pie_manut = px.pie(df_manut_tipo, names='Categoria', values='Custo', title='Custo Total por Tipo de Manutenção', hole=.4, color='Categoria', color_discrete_map={'Manutenção Geral': '#007bff', 'Rodas e Pneus': '#f97316', 'Lataria e Pintura': '#eab308', 'Arla': '#6b7280'})
+                        fig_pie_manut.update_traces(textposition='outside', texttemplate='%{label}<br>R$ %{value:,.2s} (%{percent})')
+                        st.plotly_chart(fig_pie_manut, use_container_width=True)
+
+            else:
+                # --- VISÃO 2: RAIO-X DE UM MÊS ESPECÍFICO (QUANDO UM MÊS É FILTRADO) ---
+                
+                g_col1, g_col2 = st.columns([6, 4]) # Coluna do gráfico maior que a da tabela
+
+                with g_col1:
+                    # --- Gráfico de Barras com o Breakdown Detalhado ---
+                    st.write(f"##### Composição Detalhada dos Custos - {mes_selecionado}")
+                    
+                    # Prepara os dados para o gráfico
+                    custos_detalhados = {
+                        'Categoria': [
+                            'Gasolina', 'Diesel', 'Manutenção Geral', 
+                            'Rodas e Pneus', 'Lataria e Pintura', 'Arla'
+                        ],
+                        'Custo': [
+                            df_filtrado[df_filtrado['TP.Comb'] == 'Gasolina']['custo_combustivel_total'].sum(),
+                            df_filtrado[df_filtrado['TP.Comb'] == 'Diesel']['custo_combustivel_total'].sum(),
+                            df_filtrado['custo_manutencao_geral'].sum(),
+                            df_filtrado['custo_rodas_pneus'].sum(),
+                            df_filtrado['custo_lataria_pintura'].sum(),
+                            df_filtrado['custo_arla'].sum()
+                        ],
+                        'Macro': ['Combustível', 'Combustível', 'Manutenção', 'Manutenção', 'Manutenção', 'Manutenção']
+                    }
+                    df_grafico = pd.DataFrame(custos_detalhados).sort_values('Custo', ascending=True)
+                    
+                    fig_detalhe = px.bar(
+                        df_grafico[df_grafico['Custo'] > 0], # Mostra apenas categorias com custo
+                        x='Custo', y='Categoria', orientation='h', 
+                        text_auto='.2s', color='Macro', 
+                        color_discrete_map={'Combustível': '#28a745', 'Manutenção': '#007bff'},
+                        title=f"Raio-X dos Custos em {mes_selecionado}"
+                    )
+                    fig_detalhe.update_layout(yaxis_title=None, xaxis_title="Custo (R$)", showlegend=True)
+                    st.plotly_chart(fig_detalhe, use_container_width=True)
+
+                with g_col2:
+                    # --- Tabela de Detalhamento para Apoiar o Gráfico ---
+                    st.write("##### Resumo dos Custos")
+                    
+                    # Reutiliza o df_grafico para a tabela
+                    df_tabela = df_grafico[df_grafico['Custo'] > 0].sort_values('Custo', ascending=False)
+                    total_custos = df_tabela['Custo'].sum()
+                    df_tabela['Percentual'] = (df_tabela['Custo'] / total_custos) * 100 if total_custos > 0 else 0
+                    
+                    # Adiciona a linha de total
+                    total_row = pd.DataFrame([{'Categoria': 'TOTAL', 'Custo': total_custos, 'Percentual': 100}])
+                    df_tabela = pd.concat([df_tabela, total_row], ignore_index=True)
+                    
+                    st.dataframe(
+                        df_tabela[['Categoria', 'Custo', 'Percentual']],
+                        use_container_width=True, hide_index=True,
+                        column_config={
+                            "Custo": st.column_config.NumberColumn(format="R$ %.2f"),
+                            "Percentual": st.column_config.NumberColumn(format="%.1f%%")
+                        }
+                    )
+
             
             st.markdown("---")
             st.subheader(f"📋 Relatório Detalhado por Veículo - {titulo_principal}")
             
             # Relatório com mais informações
             df_detalhado = df_filtrado.groupby('Placa').agg({
-                'Modelo': 'first', 'Grupo Veículo': 'first', 'Marca': 'first', 
+                'Modelo': 'first', 'grupocorreto': 'first', 'Marca': 'first', 
                 'TP.Comb': 'first', 'TP.Rota': 'first', 'contrato': 'first', 
                 'Roteiro Principal': 'first', 'Motorista Principal': 'first',
                 'regiao': 'first', 'filial': 'first',
-                'custo_combustivel': 'sum', 'custo_arla': 'sum', 
+                'custo_combustivel': 'sum',
                 'custo_manutencao_geral': 'sum', 'custo_rodas_pneus': 'sum', 
-                'custo_lataria_pintura': 'sum'
+                'custo_lataria_pintura': 'sum','custo_arla': 'sum', 
             }).reset_index()
             
             df_detalhado['Custo Total'] = df_detalhado[['custo_combustivel', 'custo_arla', 
@@ -201,7 +306,7 @@ if not df.empty:
                 'TP.Rota': 'Tipo de Rota', 'regiao': 'Região', 'filial': 'Filial'
             }, inplace=True)
             
-            ordem_colunas_detalhado = ['Ranking', 'Placa', 'Modelo', 'Marca', 'Grupo Veículo', 
+            ordem_colunas_detalhado = ['Ranking', 'Placa', 'Modelo', 'Marca', 'grupocorreto', 
                                      'Região', 'Filial', 'Tipo Combustível', 'Tipo de Rota', 
                                      'Contrato', 'Roteiro Principal', 'Motorista Principal', 
                                      'Valor Comb.', 'Arla', 'Manutenção em Geral', 
@@ -225,7 +330,7 @@ if not df.empty:
             st.error("❌ Nenhum dado encontrado para os filtros selecionados.")
         else:
             if ano_selecionado == 'Todos':
-                exibir_analise_anual_completa(df_filtrado, titulo_aba)
+                exibir_tendencias_mensais(df_filtrado, titulo_aba)
             else:
                 kpis = calcular_kpis_performance(df, ano_selecionado, mes_selecionado, 'valor')
                 if kpis:
@@ -237,27 +342,68 @@ if not df.empty:
             
             st.markdown("---")
             
-            # Análise regional para manutenção
-            if len(df_filtrado['regiao'].unique()) > 1 or regiao_selecionada != 'Todos':
-                exibir_kpis_regionais(df_filtrado, 'valor', regiao_selecionada)
-                st.markdown("---")
+                        # --- INÍCIO DO BLOCO DE CÓDIGO ATUALIZADO ---
 
-            # Detalhamento existente das categorias de manutenção...
-            st.subheader("🔧 Detalhamento dos Custos por Categoria")
+            st.subheader("🔧 Detalhamento dos Custos de Manutenção")
+
+            # --- 1. Cálculos ---
             custo_lataria = df_filtrado['custo_lataria_pintura'].sum()
             custo_manutencao = df_filtrado['custo_manutencao_geral'].sum()
             custo_rodas = df_filtrado['custo_rodas_pneus'].sum()
-            
-            # KPIs aprimorados
-            total_manutencao = custo_manutencao + custo_rodas + custo_lataria
-            kpi_cols = st.columns(4)
-            kpi_cols[0].metric("🔧 Manutenção Geral", f"R$ {custo_manutencao:,.2f}",
-                              f"{custo_manutencao/total_manutencao*100:.1f}%" if total_manutencao > 0 else "0%")
-            kpi_cols[1].metric("🛞 Rodas e Pneus", f"R$ {custo_rodas:,.2f}",
-                              f"{custo_rodas/total_manutencao*100:.1f}%" if total_manutencao > 0 else "0%")
-            kpi_cols[2].metric("🎨 Lataria e Pintura", f"R$ {custo_lataria:,.2f}",
-                              f"{custo_lataria/total_manutencao*100:.1f}%" if total_manutencao > 0 else "0%")
-            kpi_cols[3].metric("💰 Total Manutenção", f"R$ {total_manutencao:,.2f}")
+            # Incluindo Arla na soma total de manutenção, conforme nossa última definição
+            custo_arla = df_filtrado['custo_arla'].sum()
+            total_manutencao = custo_manutencao + custo_rodas + custo_lataria + custo_arla
+
+            # --- 2. Layout com 1 Card Principal + 1 Gráfico Detalhado ---
+            col1, col2 = st.columns([1, 2]) # Dando mais espaço para o gráfico
+
+            with col1:
+                # Card Principal com o resumo total
+                st.markdown(f"""
+                <div class="custom-card card-yellow" style="min-height: 280px;">
+                    <div class="card-title">💰 Total Manutenção</div>
+                    <div class="card-value">R$ {total_manutencao:,.2f}</div>
+                    <div class="card-detail" style="margin-top: 15px;"><strong>Composição:</strong></div>
+                    <div class="card-detail">🔧 Man. Geral: R$ {custo_manutencao:,.2f}</div>
+                    <div class="card-detail">🚗 Rodas/Pneus: R$ {custo_rodas:,.2f}</div>
+                    <div class="card-detail">🎨 Lataria/Pintura: R$ {custo_lataria:,.2f}</div>
+                    <div class="card-detail">💧 Arla: R$ {custo_arla:,.2f}</div>
+                </div>
+                """, unsafe_allow_html=True)
+
+            with col2:
+                # Gráfico de Pizza (Donut) com a distribuição percentual
+                st.write("##### Distribuição Percentual dos Custos")
+                
+                dados_grafico = {
+                    'Categoria': ['Manutenção Geral', 'Rodas e Pneus', 'Lataria e Pintura', 'Arla'],
+                    'Custo': [custo_manutencao, custo_rodas, custo_lataria, custo_arla]
+                }
+                df_grafico = pd.DataFrame(dados_grafico).sort_values('Custo', ascending=False)
+                
+                # Paleta de cores para o gráfico
+                mapa_cores = {
+                    'Manutenção Geral': '#007bff', 'Rodas e Pneus': '#f97316',
+                    'Lataria e Pintura': '#eab308', 'Arla': '#6b7280'
+                }
+
+                fig_pie = px.pie(
+                    df_grafico[df_grafico['Custo'] > 0], # Apenas mostra categorias com custo
+                    names='Categoria', 
+                    values='Custo',
+                    hole=.4,
+                    color='Categoria',
+                    color_discrete_map=mapa_cores
+                )
+                fig_pie.update_traces(
+                    textposition='outside',
+                    texttemplate='%{label}<br>R$ %{value:,.2s}<br>(%{percent})',
+                    hovertemplate='<b>%{label}</b><br>Custo: R$ %{value:,.2f}<br>Percentual: %{percent}'
+                )
+                fig_pie.update_layout(showlegend=False, margin=dict(t=20, b=20, l=20, r=20))
+                st.plotly_chart(fig_pie, use_container_width=True)
+
+            # --- FIM DO BLOCO DE CÓDIGO ATUALIZADO ---
             
             st.markdown("---")
             st.subheader(f"📊 Análise Visual dos Custos - {titulo_principal}")
@@ -292,7 +438,7 @@ if not df.empty:
             
             # Relatório de veículos para manutenção
             df_veiculos = df_filtrado.groupby('Placa').agg({
-                'Modelo': 'first', 'Grupo Veículo': 'first', 'Marca': 'first', 
+                'Modelo': 'first', 'grupocorreto': 'first', 'Marca': 'first', 
                 'TP.Comb': 'first', 'TP.Rota': 'first', 'contrato': 'first', 
                 'Roteiro Principal': 'first', 'Motorista Principal': 'first',
                 'regiao': 'first', 'filial': 'first',
@@ -309,7 +455,7 @@ if not df.empty:
                 'contrato': 'Contrato', 'regiao': 'Região', 'filial': 'Filial'
             }, inplace=True)
             
-            ordem_colunas = ['Ranking', 'Placa', 'Modelo', 'Marca', 'Grupo Veículo', 'Região', 'Filial',
+            ordem_colunas = ['Ranking', 'Placa', 'Modelo', 'Marca', 'grupocorreto', 'Região', 'Filial',
                            'TP.Comb', 'TP.Rota', 'Contrato', 'Roteiro Principal', 'Motorista Principal', 
                            'Manutenção Geral', 'Rodas e Pneus', 'Lataria e Pintura', 'Custo Total']
             
@@ -329,7 +475,7 @@ if not df.empty:
             st.error("❌ Nenhum dado encontrado para os filtros selecionados.")
         else:
             if ano_selecionado == 'Todos':
-                exibir_analise_anual_completa(df_filtrado, titulo_aba)
+                exibir_tendencias_mensais(df_filtrado, titulo_aba)
             else:
                 kpis = calcular_kpis_performance(df, ano_selecionado, mes_selecionado, 'custo_combustivel_total')
                 if kpis:
@@ -341,10 +487,6 @@ if not df.empty:
             
             st.markdown("---")
             
-            # Análise regional para combustível
-            if len(df_filtrado['regiao'].unique()) > 1 or regiao_selecionada != 'Todos':
-                exibir_kpis_regionais(df_filtrado, 'custo_combustivel_total', regiao_selecionada)
-                st.markdown("---")
 
             st.subheader(f"⛽ Análise Visual dos Custos - {titulo_principal}")
             
@@ -416,7 +558,7 @@ if not df.empty:
             st.subheader(f"📋 Consumo Detalhado por Veículo - {titulo_principal}")
             
             df_combustivel_veiculos = df_filtrado.groupby('Placa').agg({
-                'Modelo': 'first', 'Grupo Veículo': 'first', 'Marca': 'first', 
+                'Modelo': 'first', 'grupocorreto': 'first', 'Marca': 'first', 
                 'TP.Comb': 'first', 'TP.Rota': 'first', 'contrato': 'first', 
                 'Roteiro Principal': 'first', 'Motorista Principal': 'first',
                 'regiao': 'first', 'filial': 'first',
@@ -433,7 +575,7 @@ if not df.empty:
                 'contrato': 'Contrato', 'regiao': 'Região', 'filial': 'Filial'
             }, inplace=True)
             
-            ordem_colunas_comb = ['Ranking', 'Placa', 'Modelo', 'Marca', 'Grupo Veículo', 'Região', 'Filial',
+            ordem_colunas_comb = ['Ranking', 'Placa', 'Modelo', 'Marca', 'grupocorreto', 'Região', 'Filial',
                                  'TP.Comb', 'TP.Rota', 'Contrato', 'Roteiro Principal', 'Motorista Principal', 
                                  'Combustível', 'Arla', 'Total Combustível']
             
@@ -471,13 +613,13 @@ if not df.empty:
             with col2:
                 # Análise de eficiência por grupo de veículo
                 st.write("##### 🚛 Eficiência por Grupo de Veículo")
-                eficiencia_grupo = df_filtrado.groupby('Grupo Veículo').agg({
+                eficiencia_grupo = df_filtrado.groupby('grupocorreto').agg({
                     'custo_frota_total': 'mean'
                 }).reset_index().sort_values('custo_frota_total', ascending=True)
                 
                 fig_eficiencia = px.bar(eficiencia_grupo, 
                                       x='custo_frota_total', 
-                                      y='Grupo Veículo',
+                                      y='grupocorreto',
                                       orientation='h',
                                       title="Custo Médio por Grupo de Veículo",
                                       text='custo_frota_total',
@@ -579,7 +721,7 @@ if not df.empty:
                 outliers_info = df_filtrado[df_filtrado['Placa'].isin(outliers_superiores.index)].groupby('Placa').agg({
                     'Modelo': 'first',
                     'Marca': 'first', 
-                    'Grupo Veículo': 'first',
+                    'grupocorreto': 'first',
                     'regiao': 'first',
                     'filial': 'first',
                     'custo_frota_total': 'sum',
