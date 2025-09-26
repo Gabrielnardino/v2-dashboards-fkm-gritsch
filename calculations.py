@@ -50,308 +50,589 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# COPIE E COLE ESTE CÓDIGO NO LUGAR DA SUA FUNÇÃO exibir_dashboard_executivo ATUAL
+# ARQUIVO: calculations.py
+
 def exibir_dashboard_executivo(df_filtrado, df_completo, titulo_principal):
     """
-    Visão Resumida com design 100% adaptativo, cores personalizadas por
-    tipo de card e correção da exibição do Custo por Grupo.
+    Visão Resumida com foco em análise anual comparativa, projeção para o ano
+    corrente e detalhamento de performance mensal e por grupo.
     """
     st.subheader(f"👔 Visão Resumida - {titulo_principal}")
 
-    if df_filtrado.empty:
-        st.warning("Não há dados para exibir com os filtros selecionados.")
+    if df_completo.empty:
+        st.warning("Não há dados para exibir.")
         return
 
-    # --- 1. CÁLCULOS GLOBAIS ---
-    data_min = df_filtrado['data'].min()
-    data_max = df_filtrado['data'].max()
-    periodo_str = f"{data_min.strftime('%m/%Y')} até {data_max.strftime('%m/%Y')}"
-    custo_total = df_filtrado['custo_frota_total'].sum()
-    contagem_veiculos = df_filtrado['Placa'].nunique()
-    colunas_custo = {
-        'Combustível': 'custo_combustivel', 'Manutenção': 'custo_manutencao_geral',
-        'Pneus': 'custo_rodas_pneus', 'Lataria': 'custo_lataria_pintura', 'Arla': 'custo_arla'
-    }
-    custo_total_segmentado = {nome: df_filtrado[coluna].sum() for nome, coluna in colunas_custo.items()}
-    mes_atual_data = data_max.replace(day=1)
-    mes_anterior_data = (mes_atual_data - timedelta(days=1)).replace(day=1)
-    df_mes_atual = df_completo[df_completo['data'].dt.to_period('M') == mes_atual_data.to_period('M')]
-    df_mes_anterior = df_completo[df_completo['data'].dt.to_period('M') == mes_anterior_data.to_period('M')]
-    custos_atuais = {nome: df_mes_atual[coluna].sum() for nome, coluna in colunas_custo.items()}
-    custos_anteriores = {nome: df_mes_anterior[coluna].sum() for nome, coluna in colunas_custo.items()}
-    
-
-    def calcular_delta(atual, anterior):
-        if anterior > 0: 
-            return ((atual - anterior) / anterior) * 100
-        elif atual > 0:
-            return 100.0
-        return 0.0
-
-    # --- 2. CSS ADAPTATIVO COM BORDAS COLORIDAS ---
+    # --- 1. CSS (Ajustando altura mínima do card) ---
     st.markdown("""
     <style>
-    /* Variáveis para tema inverso */
-    :root {
-        --card-bg-color: #000000;  /* PRETO no tema claro */
-        --card-text-color: #ffffff;
-        --card-detail-color: #e5e7eb;
-    }
-
-    @media (prefers-color-scheme: dark) {
-        :root {
-            --card-bg-color: #ffffff;  /* BRANCO no tema escuro */
-            --card-text-color: #000000;
-            --card-detail-color: #374151;
-        }
-    }
-
-    /* Para Streamlit tema escuro */
-    [data-theme="dark"] {
-        --card-bg-color: #ffffff;
-        --card-text-color: #000000;
-        --card-detail-color: #374151;
-    }
-
-    /* Estilo Base para cards maiores */
     .custom-card {
-        background-color: var(--card-bg-color);
+        background-color: #ffffff;
         border-radius: 16px;
         padding: 24px;
         margin-bottom: 24px;
         border: 3px solid;
         box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         transition: all 0.3s ease;
-        min-height: 200px;
+        min-height: 320px;
         height: 100%;
         display: flex;
         flex-direction: column;
         justify-content: space-between;
     }
-
-    /* Bordas coloridas apenas */
-    .card-blue {
-        border-color: #3b82f6;
-    }
-
-    .card-projection {
-        border-color: #22c55e;
-    }
-
-    .card-orange {
-        border-color: #f97316;
-    }
-
-    .card-yellow {
-        border-color: #eab308;
-    }
-
-    /* Estilos de Texto dentro dos cards maiores */
+    .card-blue { border-color: #3b82f6; }
+    .card-purple { border-color: #8b5cf6; }
+    .card-yellow { border-color: #f59e0b; }
+    .card-orange { border-color: #ea580c; }
     .card-title {
         font-size: 18px;
         font-weight: bold;
-        color: var(--card-text-color);
-        margin-bottom: 16px;
-        text-transform: uppercase;
-    }
-
-    .card-detail {
-        font-size: 15px;
-        font-weight: bold;
-        color: var(--card-detail-color);
-        margin: 8px 0;
-    }
-
-    /* Valores dos cards - com cores da borda */
-    .card-value {
-        font-size: 32px;
-        font-weight: bold;
+        color: #333333;
         margin-bottom: 12px;
-    }
-
-    .card-blue .card-value { color: #3b82f6; }
-    .card-projection .card-value { color: #22c55e; }
-    .card-orange .card-value { color: #f97316; }
-    .card-yellow .card-value { color: #eab308; }
-
-    /* Estilos para KPIs menores */
-    .kpi-card {
-        background-color: var(--secondary-background-color);
-        border: 1px solid var(--gray-80);
-        border-radius: 8px;
-        padding: 18px;
-        margin-bottom: 16px;
-        text-align: center;
-    }
-
-    .kpi-title {
-        font-size: 16px;
-        color: var(--card-text-color);
-        margin-bottom: 10px;
-        font-weight: bold;
         text-transform: uppercase;
     }
-
-    .kpi-value {
-        font-size: 26px;
+    .card-detail {
+        font-size: 16px;
+        color: #666666;
+        margin: 4px 0;
+    }
+    .card-value {
+        font-size: 30px;
         font-weight: bold;
-        color: var(--card-text-color);
         margin-bottom: 10px;
     }
-
-    .kpi-comparison {
-        font-size: 14px;
-        font-weight: bold;
-        color: var(--card-detail-color);
-    }
-
-    .kpi-delta-positive { color: #f44336; }
-    .kpi-delta-negative { color: #4caf50; }
+    .card-blue .card-value { color: #3b82f6; }
+    .card-purple .card-value { color: #8b5cf6; }
+    .card-yellow .card-value { color: #f59e0b; }
+    .card-orange .card-value { color: #ea580c; }
     </style>
     """, unsafe_allow_html=True)
 
-    # --- 3. LAYOUT E EXIBIÇÃO ---
+    # --- 2. CÁLCULOS PARA ANÁLISE ANUAL ---
+    st.subheader("Análise Anual de Custos da Frota")
 
-    # LINHA 1: CARD PRINCIPAL E PROJEÇÃO
-    meses_dados_visiveis = df_filtrado['mes_ano'].nunique()
-    card_principal_html = f"""
-        <div class="custom-card card-blue">
-            <div class="card-title">💰 Custo Total da Frota</div>
-            <div class="card-value">R$ {custo_total:,.2f}</div>
-            <div class="card-detail"><strong>Período:</strong> {periodo_str}</div>
-            <div class="card-detail"><strong>⛽ Combustível:</strong> R$ {custo_total_segmentado['Combustível']:,.2f}</div>
-            <div class="card-detail"><strong>🔧 Manutenção:</strong> R$ {custo_total_segmentado['Manutenção']:,.2f}</div>
-            <div class="card-detail"><strong>🎨 Lataria:</strong> R$ {custo_total_segmentado['Lataria']:,.2f}</div>
-            <div class="card-detail"><strong>🚙 Pneus:</strong> R$ {custo_total_segmentado['Pneus']:,.2f}</div>
-            <div class="card-detail"><strong>⛽ Arla:</strong> R$ {custo_total_segmentado['Arla']:,.2f}</div>
-        </div>
-    """
+    # Verificar se há filtro de ano específico
+    ano_selecionado = st.session_state.get('ano_selecionado', 'Todos')
 
-    # Calcular informações adicionais sobre veículos
-    veiculos_por_grupo = df_filtrado.groupby('grupocorreto')['Placa'].nunique().to_dict()
-    total_registros = len(df_filtrado)
-
-    card_veiculos_html = f"""
-        <div class="custom-card card-orange">
-            <div class="card-title">🚚 Veículos na Operação</div>
-            <div class="card-value">{contagem_veiculos}</div>
-            <div class="card-detail"><strong>Período:</strong> {periodo_str}</div>
-            <div class="card-detail"><strong>📊 Total de Registros:</strong> {total_registros:,}</div>
-            <div class="card-detail"><strong>📈 Média Reg./Veículo:</strong> {total_registros/contagem_veiculos:.1f}</div>
-            <div class="card-detail" style="margin-bottom: 4px;"><strong>🚛 Principais Grupos:</strong></div>
-            {''.join([f'<div class="card-detail" style="margin: 2px 0;">  • {grupo}: {qtd} veículos</div>' for grupo, qtd in sorted(veiculos_por_grupo.items(), key=lambda x: x[1], reverse=True)[:3]])}
-        </div>
-    """
-
-    if meses_dados_visiveis > 1:
-        # COM estimativa anual: Card principal + Card estimativa / Card veículos ocupa linha inteira
-        col_principal, col_projecao = st.columns(2)
-        with col_principal:
-            st.markdown(card_principal_html, unsafe_allow_html=True)
-        with col_projecao:
-            projecao_anual = (custo_total / meses_dados_visiveis) * 12
-            st.markdown(f"""<div class="custom-card card-projection"><div class="card-title">📈 Estimativa Anual</div><div class="card-value">R$ {projecao_anual:,.2f}</div><div class="card-detail"><strong>Base:</strong> {meses_dados_visiveis} meses</div>{''.join([f'<div class="card-detail"><strong> • {nome}:</strong> R$ {((custos_atuais[nome] / meses_dados_visiveis) * 12):,.2f}</div>' for nome in colunas_custo.keys()])}</div>""", unsafe_allow_html=True)
-
-        # LINHA 2: Card de Veículos ocupando linha inteira
-        st.markdown(card_veiculos_html, unsafe_allow_html=True)
+    if ano_selecionado != 'Todos':
+        # Mostrar apenas o ano selecionado
+        anos_para_exibir = [int(ano_selecionado)]
+        # Para 2025, também mostrar projeção
+        if int(ano_selecionado) == 2025:
+            col_cards_anuais = st.columns(2)  # Atual + Projeção
+        else:
+            col_cards_anuais = st.columns(1)  # Apenas o ano
     else:
-        # SEM estimativa anual: Card principal e Card veículos lado a lado com mesmo tamanho
-        col_principal, col_veiculos = st.columns(2)
-        with col_principal:
-            st.markdown(card_principal_html, unsafe_allow_html=True)
-        with col_veiculos:
-            st.markdown(card_veiculos_html, unsafe_allow_html=True)
+        # Mostrar os 3 anos mais recentes
+        anos_disponiveis = sorted(df_completo['ano'].unique(), reverse=True)
+        anos_para_exibir = anos_disponiveis[:3]
+        anos_para_exibir.reverse()  # Ordem cronológica
+        col_cards_anuais = st.columns(len(anos_para_exibir) + 1)  # +1 para projeção
+
+    for i, ano in enumerate(anos_para_exibir):
+        with col_cards_anuais[i]:
+            df_ano = df_completo[df_completo['ano'] == ano]
+            
+            # Cálculos dos KPIs anuais
+            custo_total_ano = df_ano['custo_frota_total'].sum()
+            num_veiculos_ano = df_ano['Placa'].nunique()
+            total_km_ano = df_ano['total_km'].sum()
+            total_dias_uteis_ano = df_ano.groupby('mes_ano')['Dias Úteis'].first().sum()
+
+            # Cálculos derivados e de eficiência
+            custo_por_km = custo_total_ano / total_km_ano if total_km_ano > 0 else 0
+            # Usando a coluna de Km/L já limpa e ajustada do data_provider
+            eficiencia_media_kml = df_ano['media_km_litro_ajustado'].mean()
+            km_medio_por_veiculo = total_km_ano / num_veiculos_ano if num_veiculos_ano > 0 else 0
+            custo_dia_util = custo_total_ano / total_dias_uteis_ano if total_dias_uteis_ano > 0 else 0
+            ticket_medio_por_veiculo = custo_total_ano / num_veiculos_ano if num_veiculos_ano > 0 else 0
+
+            st.html(f"""
+<div class="custom-card card-blue">
+    <div class="card-title">🗓️ Custo Frota - {ano}</div>
+    <div class="card-value">R$ {custo_total_ano:,.2f}</div>
+    <div class="card-detail" style="border-top: 1px solid #4a4e69; padding-top: 8px;">
+        <strong>🛣️ Km Total:</strong> {total_km_ano:,.0f} Km
+    </div>
+    <div class="card-detail">
+        <strong>⛽ Eficiência Média:</strong> {eficiencia_media_kml:.2f} Km/L
+    </div>
+    <div class="card-detail">
+        <strong>💰 Custo/Km:</strong> R$ {custo_por_km:.2f}
+    </div>
+    <div class="card-detail">
+        <strong>🚛 Km Médio/Veículo:</strong> {km_medio_por_veiculo:,.0f} Km
+    </div>
+    <div class="card-detail">
+        <strong>📅 Custo/Dia Útil:</strong> R$ {custo_dia_util:,.2f}
+    </div>
+    <div class="card-detail">
+        <strong>🎫 Ticket Médio/Veículo:</strong> R$ {ticket_medio_por_veiculo:,.2f}
+    </div>
+</div>
+            """)
+
+    # --- 3. CÁLCULO E CARD DE PROJEÇÃO PARA 2025 ---
+    # Mostrar projeção apenas quando 'Todos' ou quando 2025 estiver selecionado
+    if ano_selecionado == 'Todos' or (ano_selecionado != 'Todos' and int(ano_selecionado) == 2025):
+        if ano_selecionado == 'Todos':
+            coluna_projecao = len(anos_para_exibir)
+        else:  # 2025 selecionado
+            coluna_projecao = 1
+
+        with col_cards_anuais[coluna_projecao]:
+            ano_atual = 2025
+            df_ano_atual = df_completo[df_completo['ano'] == ano_atual]
+
+            # Definir título baseado no contexto
+            if ano_selecionado == 'Todos':
+                titulo_card = f"📈 Projeção {ano_atual}"
+            else:
+                titulo_card = f"📈 Projeção Anual {ano_atual}"
+
+            if not df_ano_atual.empty and 'data' in df_ano_atual.columns:
+                try:
+                    # Cálculos dos valores parciais de 2025
+                    custo_parcial_2025 = df_ano_atual['custo_frota_total'].sum()
+                    km_parcial_2025 = df_ano_atual['total_km'].sum()
+                    num_veiculos_2025 = df_ano_atual['Placa'].nunique()
+                    eficiencia_parcial_2025 = df_ano_atual['media_km_litro_ajustado'].mean()
+                    dias_uteis_parciais_2025 = df_ano_atual.groupby('mes_ano')['Dias Úteis'].first().sum()
+
+                    # Garantir que a coluna data seja datetime
+                    df_ano_atual_copy = df_ano_atual.copy()
+                    df_ano_atual_copy['data'] = pd.to_datetime(df_ano_atual_copy['data'], errors='coerce')
+                    ultimo_mes_dados = df_ano_atual_copy['data'].dt.month.max()
+
+                    if pd.isna(ultimo_mes_dados) or ultimo_mes_dados == 0:
+                        ultimo_mes_dados = 12
+
+                    # Projeções para o ano completo
+                    projecao_2025 = (custo_parcial_2025 / ultimo_mes_dados) * 12
+                    km_projetado_2025 = (km_parcial_2025 / ultimo_mes_dados) * 12
+                    custo_por_km_projetado = projecao_2025 / km_projetado_2025 if km_projetado_2025 > 0 else 0
+                    km_medio_veiculo_projetado = km_projetado_2025 / num_veiculos_2025 if num_veiculos_2025 > 0 else 0
+                    dias_uteis_projetados = (dias_uteis_parciais_2025 / ultimo_mes_dados) * 12
+                    custo_dia_util_projetado = projecao_2025 / dias_uteis_projetados if dias_uteis_projetados > 0 else 0
+                    ticket_medio_projetado = projecao_2025 / num_veiculos_2025 if num_veiculos_2025 > 0 else 0
+
+                except Exception as e:
+                    projecao_2025 = 0
+                    ultimo_mes_dados = 0
+                    custo_parcial_2025 = 0
+                    km_projetado_2025 = 0
+                    custo_por_km_projetado = 0
+                    eficiencia_parcial_2025 = 0
+                    km_medio_veiculo_projetado = 0
+                    custo_dia_util_projetado = 0
+                    ticket_medio_projetado = 0
+
+                st.html(f"""
+<div class="custom-card card-purple">
+    <div class="card-title">{titulo_card}</div>
+    <div class="card-value">R$ {projecao_2025:,.2f}</div>
+    <div class="card-detail" style="border-top: 1px solid #4a4e69; padding-top: 8px;">
+        <strong>🛣️ Km Total:</strong> {km_projetado_2025:,.0f} Km
+    </div>
+    <div class="card-detail">
+        <strong>⛽ Eficiência Média:</strong> {eficiencia_parcial_2025:.2f} Km/L
+    </div>
+    <div class="card-detail">
+        <strong>💰 Custo/Km:</strong> R$ {custo_por_km_projetado:.2f}
+    </div>
+    <div class="card-detail">
+        <strong>🚛 Km Médio/Veículo:</strong> {km_medio_veiculo_projetado:,.0f} Km
+    </div>
+    <div class="card-detail">
+        <strong>📅 Custo/Dia Útil:</strong> R$ {custo_dia_util_projetado:,.2f}
+    </div>
+    <div class="card-detail">
+        <strong>🎫 Ticket Médio/Veículo:</strong> R$ {ticket_medio_projetado:,.2f}
+    </div>
+</div>
+                """)
+            else:
+                st.html(f"""
+<div class="custom-card card-purple">
+    <div class="card-title">{titulo_card}</div>
+    <div class="card-value">N/A</div>
+</div>
+                """)
+            
     st.markdown("---")
 
-    # LINHA 3: Variações vs. Mês Anterior
-    st.subheader("Variação vs. Mês Anterior")
-    cols_variacao = st.columns(len(colunas_custo))
-    for i, nome in enumerate(colunas_custo.keys()):
-        with cols_variacao[i]:
-            valor_atual, valor_anterior = custos_atuais[nome], custos_anteriores[nome]
-            delta = calcular_delta(valor_atual, valor_anterior)
-            delta_symbol = "▲" if delta >= 0 else "▼"
-            delta_color = "#ff4b4b" if delta >= 0 else "#28a745"
+    # --- O RESTANTE DA VISÃO RESUMIDA (Análises mensais, por grupo, etc.) ---
+    # Essas seções continuam funcionando com base no df_filtrado pelos seletores da interface
 
-            # Formatação mais compacta para valores grandes
-            valor_atual_str = f"R$ {valor_atual/1000:.0f}k" if valor_atual >= 10000 else f"R$ {valor_atual:,.2f}"
-            valor_anterior_str = f"R$ {valor_anterior/1000:.0f}k" if valor_anterior >= 10000 else f"R$ {valor_anterior:,.2f}"
+    # Cálculos para comparações mensais (baseado no período filtrado)
+    if not df_filtrado.empty and 'data' in df_filtrado.columns:
+        try:
+            # Garantir que a coluna data seja datetime
+            df_filtrado_copy = df_filtrado.copy()
+            df_filtrado_copy['data'] = pd.to_datetime(df_filtrado_copy['data'], errors='coerce')
 
-            st.markdown(f"""
-            <div class="custom-card card-yellow" style="min-height: 180px;">
-                <div class="card-title">{nome}</div>
-                <div class="card-value" style="font-size: 24px;">{valor_atual_str}</div>
-                <div class="card-detail" style="color: {delta_color}; font-weight: bold; font-size: 16px;">{delta_symbol} {abs(delta):.1f}%</div>
-                <div class="card-detail" style="color: {delta_color}; font-weight: bold;">Anterior: {valor_anterior_str}</div>
-            </div>
-            """, unsafe_allow_html=True)
+            data_max_filtrado = df_filtrado_copy['data'].max()
+
+            if pd.isna(data_max_filtrado):
+                # Se não há data válida, usar data atual
+                data_max_filtrado = pd.Timestamp.now()
+
+            mes_atual_data = data_max_filtrado.replace(day=1)
+            mes_anterior_data = mes_atual_data - relativedelta(months=1)
+
+            # Garantir que df_completo também tenha data como datetime
+            df_completo_copy = df_completo.copy()
+            df_completo_copy['data'] = pd.to_datetime(df_completo_copy['data'], errors='coerce')
+
+            df_mes_atual = df_completo_copy[df_completo_copy['data'].dt.to_period('M') == mes_atual_data.to_period('M')]
+            df_mes_anterior = df_completo_copy[df_completo_copy['data'].dt.to_period('M') == mes_anterior_data.to_period('M')]
+        except Exception as e:
+            # Em caso de erro, criar DataFrames vazios
+            df_mes_atual = pd.DataFrame()
+            df_mes_anterior = pd.DataFrame()
+            data_max_filtrado = pd.Timestamp.now()
+    else:
+        df_mes_atual = pd.DataFrame()
+        df_mes_anterior = pd.DataFrame()
+        data_max_filtrado = pd.Timestamp.now()
+    
+    colunas_custo = {
+        'Combustível': 'custo_combustivel', 'Manutenção': 'custo_manutencao_geral',
+        'Pneus': 'custo_rodas_pneus', 'Lataria': 'custo_lataria_pintura', 'Arla': 'custo_arla'
+    }
+
+    # Verificar se as colunas existem antes de calcular
+    custos_atuais = {}
+    custos_anteriores = {}
+
+    for nome, coluna in colunas_custo.items():
+        if coluna in df_mes_atual.columns:
+            custos_atuais[nome] = df_mes_atual[coluna].sum()
+        else:
+            custos_atuais[nome] = 0
+
+        if coluna in df_mes_anterior.columns:
+            custos_anteriores[nome] = df_mes_anterior[coluna].sum()
+        else:
+            custos_anteriores[nome] = 0
+
+    def calcular_delta(atual, anterior):
+        if anterior > 0: return ((atual - anterior) / anterior) * 100
+        elif atual > 0: return 100.0
+        return 0.0
+
+    # Verificar se deve mostrar análise mensal ou anual
+    mes_selecionado = st.session_state.get('mes_selecionado', 'Todos')
+
+    if mes_selecionado == 'Todos':
+        # Análise Anual Comparativa por Categoria de Custo
+        st.subheader("Análise Anual Comparativa por Categoria de Custo")
+
+        # Calcular custos por ano para cada categoria
+        custos_por_ano = {}
+        anos_para_comparar = sorted(df_completo['ano'].unique(), reverse=True)[:3]  # Últimos 3 anos
+        anos_para_comparar.reverse()  # Ordem cronológica
+
+        for ano in anos_para_comparar:
+            df_ano = df_completo[df_completo['ano'] == ano]
+            custos_por_ano[ano] = {}
+
+            if ano == 2025:
+                # Para 2025, usar projeções baseadas nos dados parciais
+                try:
+                    # Garantir que a coluna data seja datetime para 2025
+                    df_ano_copy = df_ano.copy()
+                    df_ano_copy['data'] = pd.to_datetime(df_ano_copy['data'], errors='coerce')
+                    ultimo_mes_2025 = df_ano_copy['data'].dt.month.max()
+
+                    if pd.isna(ultimo_mes_2025) or ultimo_mes_2025 == 0:
+                        ultimo_mes_2025 = 12
+
+                    # Calcular projeções para cada categoria
+                    for nome, coluna in colunas_custo.items():
+                        if coluna in df_ano.columns:
+                            custo_parcial = df_ano[coluna].sum()
+                            projecao_categoria = (custo_parcial / ultimo_mes_2025) * 12
+                            custos_por_ano[ano][nome] = projecao_categoria
+                        else:
+                            custos_por_ano[ano][nome] = 0
+                except Exception as e:
+                    # Em caso de erro, usar valores parciais
+                    for nome, coluna in colunas_custo.items():
+                        if coluna in df_ano.columns:
+                            custos_por_ano[ano][nome] = df_ano[coluna].sum()
+                        else:
+                            custos_por_ano[ano][nome] = 0
+            else:
+                # Para outros anos, usar valores reais
+                for nome, coluna in colunas_custo.items():
+                    if coluna in df_ano.columns:
+                        custos_por_ano[ano][nome] = df_ano[coluna].sum()
+                    else:
+                        custos_por_ano[ano][nome] = 0
+
+        cols_variacao = st.columns(len(colunas_custo))
+        for i, nome in enumerate(colunas_custo.keys()):
+            with cols_variacao[i]:
+                # Pegar valores dos anos disponíveis
+                valores_anos = [custos_por_ano.get(ano, {}).get(nome, 0) for ano in anos_para_comparar]
+
+                # Calcular variação entre o último e penúltimo ano
+                if len(valores_anos) >= 2 and valores_anos[-2] > 0:
+                    delta = ((valores_anos[-1] - valores_anos[-2]) / valores_anos[-2]) * 100
+                else:
+                    delta = 0
+
+                delta_symbol = "▲" if delta >= 0 else "▼"
+                delta_color = "#ff4b4b" if delta >= 0 else "#28a745"
+
+                valor_atual = valores_anos[-1] if valores_anos else 0
+                valor_atual_str = f"R$ {valor_atual/1000:.0f}k" if valor_atual >= 10000 else f"R$ {valor_atual:,.2f}"
+
+                # Criar detalhes com histórico dos anos
+                detalhes_anos = ""
+                for j, ano in enumerate(anos_para_comparar):
+                    valor = valores_anos[j] if j < len(valores_anos) else 0
+                    valor_str = f"R$ {valor/1000:.0f}k" if valor >= 10000 else f"R$ {valor:,.0f}"
+
+                    # Adicionar indicação de projeção para 2025
+                    ano_label = f"{ano} (Proj.)" if ano == 2025 else str(ano)
+
+                    if j == 0:  # Primeiro ano, adicionar border-top
+                        detalhes_anos += f'<div class="card-detail" style="border-top: 1px solid #4a4e69; padding-top: 8px;"><strong>{ano_label}:</strong> {valor_str}</div>'
+                    else:
+                        detalhes_anos += f'<div class="card-detail"><strong>{ano_label}:</strong> {valor_str}</div>'
+
+                st.html(f"""
+<div class="custom-card card-yellow" style="min-height: 180px;">
+    <div class="card-title">{nome}</div>
+    <div class="card-value">{valor_atual_str}</div>
+    <div class="card-detail" style="color: {delta_color}; font-weight: bold;">
+        {delta_symbol} {abs(delta):.1f}% vs. Ano Anterior
+    </div>
+    {detalhes_anos}
+</div>
+                """)
+    else:
+        # Análise Mensal (comportamento original)
+        st.subheader(f"Análise Mensal Detalhada (Base: {data_max_filtrado.strftime('%m/%Y')})")
+        cols_variacao = st.columns(len(colunas_custo))
+        for i, nome in enumerate(colunas_custo.keys()):
+            with cols_variacao[i]:
+                valor_atual, valor_anterior = custos_atuais[nome], custos_anteriores[nome]
+                delta = calcular_delta(valor_atual, valor_anterior)
+                delta_symbol = "▲" if delta >= 0 else "▼"
+                delta_color = "#ff4b4b" if delta >= 0 else "#28a745"
+                valor_atual_str = f"R$ {valor_atual/1000:.0f}k" if valor_atual >= 10000 else f"R$ {valor_atual:,.2f}"
+                valor_anterior_str = f"R$ {valor_anterior/1000:.0f}k" if valor_anterior >= 10000 else f"R$ {valor_anterior:,.2f}"
+                st.html(f"""
+<div class="custom-card card-yellow" style="min-height: 180px;">
+    <div class="card-title">{nome}</div>
+    <div class="card-value">{valor_atual_str}</div>
+    <div class="card-detail" style="color: {delta_color}; font-weight: bold;">
+        {delta_symbol} {abs(delta):.1f}% vs. Mês Ant.
+    </div>
+    <div class="card-detail">Anterior: {valor_anterior_str}</div>
+</div>
+                """)
     st.markdown("---")
 
-    # LINHA 4: CUSTO MÉDIO POR GRUPO (CORRIGIDO E RESTAURADO)
-    if 'grupocorreto' in df_filtrado.columns:
-        st.subheader("Custo Médio por Grupo de Veículo")
-        custo_por_grupo = df_filtrado.groupby('grupocorreto').agg(CustoTotal=('custo_frota_total', 'sum'), NumVeiculos=('Placa', 'nunique')).reset_index()
-        custo_por_grupo['CustoMedio'] = custo_por_grupo.apply(lambda row: row['CustoTotal'] / row['NumVeiculos'] if row['NumVeiculos'] > 0 else 0, axis=1)
+    # CUSTO MÉDIO POR GRUPO - Responsivo aos filtros
+    if 'grupocorreto' in df_filtrado.columns and not df_filtrado.empty:
+        # Definir título baseado nos filtros ativos
+        ano_selecionado = st.session_state.get('ano_selecionado', 'Todos')
+        mes_selecionado = st.session_state.get('mes_selecionado', 'Todos')
+        regiao_selecionada = st.session_state.get('regiao_selecionada', 'Todos')
+        filial_selecionada = st.session_state.get('filial_selecionada', 'Todos')
 
-        # Adicionar emoji e ordem lógica baseado no tipo de grupo
+        # Construir título dinâmico
+        filtros_ativos = []
+        if ano_selecionado != 'Todos':
+            filtros_ativos.append(f"Ano {ano_selecionado}")
+        if mes_selecionado != 'Todos':
+            filtros_ativos.append(f"Mês {mes_selecionado}")
+        if regiao_selecionada != 'Todos':
+            filtros_ativos.append(f"Região {regiao_selecionada}")
+        if filial_selecionada != 'Todos':
+            filtros_ativos.append(f"Filial {filial_selecionada}")
+
+        if filtros_ativos:
+            titulo_grupo = f"Custo Médio por Grupo de Veículo ({', '.join(filtros_ativos)})"
+        else:
+            titulo_grupo = "Custo Médio por Grupo de Veículo (Dados Completos)"
+
+        st.subheader(titulo_grupo)
+
+        # Verificar se as colunas necessárias existem
+        required_cols = ['custo_frota_total', 'Placa']
+        if all(col in df_filtrado.columns for col in required_cols):
+            try:
+                custo_por_grupo = df_filtrado.groupby('grupocorreto').agg(
+                    CustoTotal=('custo_frota_total', 'sum'),
+                    NumVeiculos=('Placa', 'nunique')
+                ).reset_index()
+
+                # Cálculo seguro do custo médio
+                def calcular_custo_medio(row):
+                    if row['NumVeiculos'] > 0:
+                        return row['CustoTotal'] / row['NumVeiculos']
+                    return 0
+
+                custo_por_grupo['CustoMedio'] = custo_por_grupo.apply(calcular_custo_medio, axis=1)
+            except Exception as e:
+                custo_por_grupo = pd.DataFrame()
+        else:
+            custo_por_grupo = pd.DataFrame()
         def get_grupo_info(grupo):
             grupo_lower = str(grupo).lower()
-            if 'leve' in grupo_lower:
-                return '🚗', 1
-            elif 'médio' in grupo_lower or 'medio' in grupo_lower:
-                return '🚐', 2
-            elif 'pesado' in grupo_lower:
-                return '🚚', 3
-            elif 'caminhão' in grupo_lower or 'caminhao' in grupo_lower:
-                return '🚛', 4
-            else:
-                return '🚙', 5
-
-        # Adicionar emoji e ordem para ordenação
+            if 'leve' in grupo_lower: return '🚗', 1
+            elif 'médio' in grupo_lower or 'medio' in grupo_lower: return '🚐', 2
+            elif 'pesado' in grupo_lower: return '🚚', 3
+            elif 'caminhão' in grupo_lower or 'caminhao' in grupo_lower: return '🚛', 4
+            else: return '🚙', 5
         custo_por_grupo['emoji'] = custo_por_grupo['grupocorreto'].apply(lambda x: get_grupo_info(x)[0])
         custo_por_grupo['ordem'] = custo_por_grupo['grupocorreto'].apply(lambda x: get_grupo_info(x)[1])
-
-        # Ordenar por ordem lógica: Leve, Médio, Pesado, Caminhão
         custo_por_grupo = custo_por_grupo.sort_values('ordem')
-
         if not custo_por_grupo.empty:
-            cols_grupos = st.columns(len(custo_por_grupo))
+            # Limitar o número de colunas para evitar problemas de layout
+            num_grupos = len(custo_por_grupo)
+            max_colunas = min(num_grupos, 5)  # Máximo 5 colunas
+            cols_grupos = st.columns(max_colunas)
+
             for i, (idx, row) in enumerate(custo_por_grupo.iterrows()):
-                with cols_grupos[i]:
-                    # Formatação mais compacta para valores grandes
+                with cols_grupos[i % max_colunas]:
+                    # Cálculos adicionais para o grupo
+                    df_grupo = df_filtrado[df_filtrado['grupocorreto'] == row['grupocorreto']]
+
+                    # Formatação dos valores
                     custo_total_str = f"R$ {row['CustoTotal']/1000:.0f}k" if row['CustoTotal'] >= 10000 else f"R$ {row['CustoTotal']:,.2f}"
                     custo_medio_str = f"R$ {row['CustoMedio']/1000:.1f}k" if row['CustoMedio'] >= 10000 else f"R$ {row['CustoMedio']:,.2f}"
 
-                    st.markdown(f"""
-                    <div class="custom-card card-orange">
-                        <div class="card-title">{row['emoji']} {row['grupocorreto']}</div>
-                        <div class="card-value" style="font-size: 24px;">{custo_medio_str}</div>
-                        <div class="card-detail" style="font-weight: bold; font-size: 15px;">{row['NumVeiculos']} veículos</div>
-                        <div class="card-detail" style="font-weight: bold; font-size: 15px; color: #ff8c00;">Total: {custo_total_str}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    # Informações adicionais
+                    try:
+                        km_total_grupo = df_grupo['total_km'].sum() if 'total_km' in df_grupo.columns else 0
+                        km_por_veiculo = km_total_grupo / row['NumVeiculos'] if row['NumVeiculos'] > 0 else 0
+                        custo_por_km = row['CustoTotal'] / km_total_grupo if km_total_grupo > 0 else 0
+
+                        km_total_str = f"{km_total_grupo:,.0f} Km" if km_total_grupo > 0 else "N/A"
+                        km_veiculo_str = f"{km_por_veiculo:,.0f} Km/Veículo" if km_por_veiculo > 0 else "N/A"
+                        custo_km_str = f"R$ {custo_por_km:.2f}/Km" if custo_por_km > 0 else "N/A"
+                    except:
+                        km_total_str = "N/A"
+                        km_veiculo_str = "N/A"
+                        custo_km_str = "N/A"
+
+                    st.html(f"""
+<div class="custom-card card-orange">
+    <div class="card-title">{row['emoji']} {row['grupocorreto']}</div>
+    <div class="card-value">{custo_medio_str}</div>
+    <div class="card-detail" style="border-top: 1px solid #4a4e69; padding-top: 8px;">
+        <strong>🚛 Veículos:</strong> {row['NumVeiculos']}
+    </div>
+    <div class="card-detail">
+        <strong>💰 Total:</strong> {custo_total_str}
+    </div>
+    <div class="card-detail">
+        <strong>🛣️ Km Total:</strong> {km_total_str}
+    </div>
+    <div class="card-detail">
+        <strong>📊 Km/Veículo:</strong> {km_veiculo_str}
+    </div>
+    <div class="card-detail">
+        <strong>💸 Custo/Km:</strong> {custo_km_str}
+    </div>
+</div>
+                    """)
         st.markdown("---")
 
-    # LINHA 5: ANÁLISE POR FILIAL (COM FUNDO AZUL E DETALHES)
-    st.subheader("Análise Resumida por Filial")
-    gastos_por_filial = df_filtrado.groupby('filial')['custo_frota_total'].sum().sort_values(ascending=False)
-    if not gastos_por_filial.empty:
-        num_colunas = 3
-        cols = st.columns(num_colunas)
-        for i, (filial_nome, custo_total_filial) in enumerate(gastos_por_filial.items()):
-            with cols[i % num_colunas]:
-                df_da_filial = df_filtrado[df_filtrado['filial'] == filial_nome]
-                custos_filial = {nome: df_da_filial[coluna].sum() for nome, coluna in colunas_custo.items()}
-                st.markdown(f"""
-                <div class="custom-card card-blue">
-                    <div class="card-title">🏢 {filial_nome}</div>
-                    <div class="card-value">R$ {custo_total_filial:,.2f}</div>
-                    <div class="card-detail"><strong>⛽ Combustível:</strong> R$ {custos_filial['Combustível']:,.2f}</div>
-                    <div class="card-detail"><strong>🔧 Manutenção:</strong> R$ {custos_filial['Manutenção']:,.2f}</div>
-                    <div class="card-detail"><strong>🎨 Lataria:</strong> R$ {custos_filial['Lataria']:,.2f}</div>
-                    <div class="card-detail"><strong>🚙 Pneus:</strong> R$ {custos_filial['Pneus']:,.2f}</div>
-                    <div class="card-detail"><strong>⛽ Arla:</strong> R$ {custos_filial['Arla']:,.2f}</div>
-                </div>
-                """, unsafe_allow_html=True)
+    # ANÁLISE POR FILIAL - Responsiva aos filtros
+    # Construir título dinâmico para filiais
+    filtros_filial = []
+    if ano_selecionado != 'Todos':
+        filtros_filial.append(f"Ano {ano_selecionado}")
+    if mes_selecionado != 'Todos':
+        filtros_filial.append(f"Mês {mes_selecionado}")
+    if regiao_selecionada != 'Todos':
+        filtros_filial.append(f"Região {regiao_selecionada}")
+
+    if filtros_filial:
+        titulo_filial = f"Análise Detalhada por Filial ({', '.join(filtros_filial)})"
+    else:
+        titulo_filial = "Análise Detalhada por Filial (Dados Completos)"
+
+    st.subheader(titulo_filial)
+
+    if 'filial' in df_filtrado.columns and 'custo_frota_total' in df_filtrado.columns and not df_filtrado.empty:
+        try:
+            gastos_por_filial = df_filtrado.groupby('filial')['custo_frota_total'].sum().sort_values(ascending=False)
+
+            if not gastos_por_filial.empty:
+                num_colunas = 3
+                cols = st.columns(num_colunas)
+
+                for i, (filial_nome, custo_total_filial) in enumerate(gastos_por_filial.items()):
+                    with cols[i % num_colunas]:
+                        df_da_filial = df_filtrado[df_filtrado['filial'] == filial_nome]
+
+                        # Cálculos dos KPIs da filial (similar à análise anual)
+                        try:
+                            num_veiculos_filial = df_da_filial['Placa'].nunique() if 'Placa' in df_da_filial.columns else 0
+                            total_km_filial = df_da_filial['total_km'].sum() if 'total_km' in df_da_filial.columns else 0
+                            total_dias_uteis_filial = df_da_filial.groupby('mes_ano')['Dias Úteis'].first().sum() if 'Dias Úteis' in df_da_filial.columns else 0
+
+                            # Cálculos derivados
+                            custo_por_km_filial = custo_total_filial / total_km_filial if total_km_filial > 0 else 0
+                            eficiencia_media_filial = df_da_filial['media_km_litro_ajustado'].mean() if 'media_km_litro_ajustado' in df_da_filial.columns else 0
+                            km_medio_por_veiculo_filial = total_km_filial / num_veiculos_filial if num_veiculos_filial > 0 else 0
+                            custo_dia_util_filial = custo_total_filial / total_dias_uteis_filial if total_dias_uteis_filial > 0 else 0
+                            ticket_medio_por_veiculo_filial = custo_total_filial / num_veiculos_filial if num_veiculos_filial > 0 else 0
+
+                            # Formatação dos valores
+                            total_km_str = f"{total_km_filial:,.0f}" if total_km_filial > 0 else "0"
+                            eficiencia_str = f"{eficiencia_media_filial:.2f}" if eficiencia_media_filial > 0 else "N/A"
+                            custo_km_str = f"{custo_por_km_filial:.2f}" if custo_por_km_filial > 0 else "0.00"
+                            km_veiculo_str = f"{km_medio_por_veiculo_filial:,.0f}" if km_medio_por_veiculo_filial > 0 else "0"
+                            custo_dia_str = f"{custo_dia_util_filial:,.2f}" if custo_dia_util_filial > 0 else "0.00"
+                            ticket_str = f"{ticket_medio_por_veiculo_filial:,.2f}" if ticket_medio_por_veiculo_filial > 0 else "0.00"
+
+                        except Exception as e:
+                            num_veiculos_filial = 0
+                            total_km_str = "N/A"
+                            eficiencia_str = "N/A"
+                            custo_km_str = "N/A"
+                            km_veiculo_str = "N/A"
+                            custo_dia_str = "N/A"
+                            ticket_str = "N/A"
+
+                        st.html(f"""
+<div class="custom-card card-blue">
+    <div class="card-title">🏢 {filial_nome}</div>
+    <div class="card-value">R$ {custo_total_filial:,.2f}</div>
+    <div class="card-detail" style="border-top: 1px solid #4a4e69; padding-top: 8px;">
+        <strong>🛣️ Km Total:</strong> {total_km_str} Km
+    </div>
+    <div class="card-detail">
+        <strong>⛽ Eficiência Média:</strong> {eficiencia_str} Km/L
+    </div>
+    <div class="card-detail">
+        <strong>💰 Custo/Km:</strong> R$ {custo_km_str}
+    </div>
+    <div class="card-detail">
+        <strong>🚛 Km Médio/Veículo:</strong> {km_veiculo_str} Km
+    </div>
+    <div class="card-detail">
+        <strong>📅 Custo/Dia Útil:</strong> R$ {custo_dia_str}
+    </div>
+    <div class="card-detail">
+        <strong>🎫 Ticket Médio/Veículo:</strong> R$ {ticket_str}
+    </div>
+</div>
+                        """)
+        except Exception as e:
+            st.warning("Erro ao processar análise por filial.")
+    else:
+        st.info("Dados insuficientes para análise por filial.")
 
 def calcular_kpis_performance(df_historico, ano_selecionado, mes_selecionado, coluna_custo):
     if mes_selecionado == 'Todos' or ano_selecionado == 'Todos':
@@ -606,7 +887,6 @@ def exibir_kpis_em_cartoes(kpis, tipo_custo):
         </div>
         """, unsafe_allow_html=True)
 
-
 def exibir_graficos_performance_avancados(df_historico, mes_selecionado, kpis, coluna_custo, titulo_grafico):
     st.subheader("📈 Visualização Avançada da Performance")
     
@@ -770,6 +1050,549 @@ def exibir_graficos_performance_avancados(df_historico, mes_selecionado, kpis, c
                 {sparkline_svg}
             </div>
             """, unsafe_allow_html=True)
+
+def exibir_panorama_filiais(df_filtrado):
+    """
+    Análise panorâmica das filiais em formato de tabela interativa rica
+    com formatação condicional e gráficos de comparação integrados.
+    """
+    st.subheader("🏢 Panorama Geral das Filiais - Tabela Comparativa Interativa")
+
+    if df_filtrado.empty or 'filial' not in df_filtrado.columns:
+        st.warning("Dados insuficientes para análise de filiais.")
+        return
+
+    # --- PREPARAÇÃO DOS DADOS POR FILIAL ---
+    dados_filiais = df_filtrado.groupby('filial').agg(
+        # Custos detalhados
+        custo_total=('custo_frota_total', 'sum'),
+        custo_manutencao=('custo_manutencao_geral', 'sum'),
+        custo_combustivel=('custo_combustivel', 'sum'),
+        custo_lataria=('custo_lataria_pintura', 'sum'),
+        custo_pneus=('custo_rodas_pneus', 'sum'),
+        custo_arla=('custo_arla', 'sum'),
+        # Métricas operacionais
+        num_veiculos=('Placa', 'nunique'),
+        total_km=('total_km', 'sum'),
+        total_dias_uteis=('Dias Úteis', 'sum'),
+        eficiencia_media=('media_km_litro_ajustado', 'mean')
+    ).reset_index()
+
+    # Cálculos derivados
+    dados_filiais['custo_por_km'] = dados_filiais['custo_total'] / dados_filiais['total_km']
+    dados_filiais['km_medio_veiculo'] = dados_filiais['total_km'] / dados_filiais['num_veiculos']
+    dados_filiais['custo_dia_util'] = dados_filiais['custo_total'] / dados_filiais['total_dias_uteis']
+    dados_filiais['ticket_medio_veiculo'] = dados_filiais['custo_total'] / dados_filiais['num_veiculos']
+
+    # Tratar valores infinitos e NaN
+    dados_filiais = dados_filiais.replace([np.inf, -np.inf], 0).fillna(0)
+
+    # Adicionar grupos de veículos mais comuns por filial
+    if 'grupocorreto' in df_filtrado.columns:
+        grupos_por_filial = df_filtrado.groupby('filial')['grupocorreto'].apply(
+            lambda x: x.value_counts().index[0] if not x.empty else 'N/A'
+        ).to_dict()
+        dados_filiais['grupo_principal'] = dados_filiais['filial'].map(grupos_por_filial)
+    else:
+        dados_filiais['grupo_principal'] = 'N/A'
+
+    # Calcular rankings para cada métrica
+    dados_filiais['rank_custo_total'] = dados_filiais['custo_total'].rank(ascending=False, method='min').astype(int)
+    dados_filiais['rank_custo_km'] = dados_filiais['custo_por_km'].rank(ascending=True, method='min').astype(int)  # Menor é melhor
+    dados_filiais['rank_eficiencia'] = dados_filiais['eficiencia_media'].rank(ascending=False, method='min').astype(int)
+    dados_filiais['rank_frota'] = dados_filiais['num_veiculos'].rank(ascending=False, method='min').astype(int)
+
+    # Ordenar por custo total (padrão)
+    dados_filiais = dados_filiais.sort_values('custo_total', ascending=False)
+
+
+    # Preparar dados para a tabela
+    tabela_comparativa = dados_filiais.copy()
+
+    # Renomear colunas para exibição (apenas informações mais úteis)
+    tabela_display = tabela_comparativa[[
+        'filial', 'custo_total', 'custo_por_km', 'num_veiculos', 'eficiencia_media',
+        'ticket_medio_veiculo', 'total_km'
+    ]].rename(columns={
+        'filial': '🏢 Filial',
+        'custo_total': '💰 Custo Total',
+        'custo_por_km': '⚡ Custo/Km',
+        'num_veiculos': '🚛 Veículos',
+        'eficiencia_media': '⛽ Km/L',
+        'ticket_medio_veiculo': '🎫 Ticket Médio',
+        'total_km': '🛣️ Total Km'
+    })
+
+    # Configuração da tabela simplificada
+    st.dataframe(
+        tabela_display,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "💰 Custo Total": st.column_config.NumberColumn(format="R$ %.2f"),
+            "⚡ Custo/Km": st.column_config.NumberColumn(format="R$ %.2f"),
+            "🚛 Veículos": st.column_config.NumberColumn(format="%d"),
+            "⛽ Km/L": st.column_config.NumberColumn(format="%.2f Km/L"),
+            "🎫 Ticket Médio": st.column_config.NumberColumn(format="R$ %.2f"),
+            "🛣️ Total Km": st.column_config.NumberColumn(format="%.0f Km")
+        }
+    )
+    st.markdown("---")
+    # --- INSIGHTS E ANÁLISES INCREMENTADOS ---
+    st.markdown("### 🔍- Insights e Análises Avançadas")
+
+    # Cards de insights fixos (sempre 4)
+    cols_insights = st.columns(4)
+
+    # Top performers baseado no número de filiais disponíveis
+    with cols_insights[0]:
+        melhor_eficiencia = dados_filiais.loc[dados_filiais['custo_por_km'].idxmin()]
+        economia_potencial = (dados_filiais['custo_por_km'].max() - melhor_eficiencia['custo_por_km']) * dados_filiais['total_km'].sum()
+        st.html(f"""
+<div class="custom-card card-green" style="min-height: 180px;">
+    <div class="card-title">⚡ Filial Mais Eficiente</div>
+    <div class="card-value" style="font-size: 18px;">{melhor_eficiencia['filial']}</div>
+    <div class="card-detail">💰 R$ {melhor_eficiencia['custo_por_km']:.2f}/Km</div>
+    <div class="card-detail" style="border-top: 1px solid #4a4e69; padding-top: 8px;">
+        <strong>💡 Economia potencial:</strong> R$ {economia_potencial:,.0f}
+    </div>
+</div>
+        """)
+
+    with cols_insights[1]:
+        melhor_combustivel = dados_filiais.loc[dados_filiais['eficiencia_media'].idxmax()]
+        diferenca_eficiencia = melhor_combustivel['eficiencia_media'] - dados_filiais['eficiencia_media'].min()
+        st.html(f"""
+<div class="custom-card card-yellow" style="min-height: 180px;">
+    <div class="card-title">⛽ Melhor Eficiência Combustível</div>
+    <div class="card-value" style="font-size: 18px;">{melhor_combustivel['filial']}</div>
+    <div class="card-detail">⛽ {melhor_combustivel['eficiencia_media']:.2f} Km/L</div>
+    <div class="card-detail" style="border-top: 1px solid #4a4e69; padding-top: 8px;">
+        <strong>📈 {diferenca_eficiencia:.2f} Km/L</strong> acima da menor
+    </div>
+</div>
+        """)
+
+    with cols_insights[2]:
+        maior_frota = dados_filiais.loc[dados_filiais['num_veiculos'].idxmax()]
+        percentual_frota = (maior_frota['num_veiculos'] / dados_filiais['num_veiculos'].sum()) * 100
+        st.html(f"""
+<div class="custom-card card-blue" style="min-height: 180px;">
+    <div class="card-title">🚛 Maior Frota</div>
+    <div class="card-value" style="font-size: 18px;">{maior_frota['filial']}</div>
+    <div class="card-detail">🚛 {int(maior_frota['num_veiculos'])} veículos</div>
+    <div class="card-detail" style="border-top: 1px solid #4a4e69; padding-top: 8px;">
+        <strong>📊 {percentual_frota:.1f}%</strong> da frota total
+    </div>
+</div>
+        """)
+
+    with cols_insights[3]:
+        maior_custo = dados_filiais.iloc[0]  # Já ordenado por custo total
+        percentual_custo = (maior_custo['custo_total'] / dados_filiais['custo_total'].sum()) * 100
+        st.html(f"""
+<div class="custom-card card-orange" style="min-height: 180px;">
+    <div class="card-title">💰 Maior Operação</div>
+    <div class="card-value" style="font-size: 18px;">{maior_custo['filial']}</div>
+    <div class="card-detail">💰 R$ {maior_custo['custo_total']/1000:.0f}k</div>
+    <div class="card-detail" style="border-top: 1px solid #4a4e69; padding-top: 8px;">
+        <strong>📊 {percentual_custo:.1f}%</strong> do custo total
+    </div>
+</div>
+        """)
+
+
+
+    # --- OPÇÃO 1: CARDS COMPARATIVOS LADO A LADO ---
+    st.markdown("### 🎴 Cards Comparativos por Filial")
+
+    # Obter filtros superiores atuais
+    filtros_superiores_atuais = {
+        'ano': st.session_state.get('ano_selecionado', 'Todos'),
+        'mes': st.session_state.get('mes_selecionado', 'Todos'),
+        'regiao': st.session_state.get('regiao_selecionada', 'Todos'),
+        'filial': st.session_state.get('filial_selecionada', 'Todos')
+    }
+
+    # Verificar se os filtros superiores mudaram
+    filtros_anteriores = st.session_state.get('filtros_superiores_opcao1', {})
+    filtros_mudaram = filtros_superiores_atuais != filtros_anteriores
+
+    # Atualizar filtros salvos
+    st.session_state.filtros_superiores_opcao1 = filtros_superiores_atuais
+
+    # Filtro de seleção de filiais com padrão top 3
+    todas_filiais = dados_filiais['filial'].tolist()
+    top_3_filiais = dados_filiais.head(3)['filial'].tolist()  # Top 3 por custo total (já ordenado)
+
+    # Se os filtros superiores mudaram, resetar para o padrão
+    if filtros_mudaram:
+        filiais_default = top_3_filiais
+        # Limpar cache do multiselect se existir
+        if 'filiais_opcao1_selecionadas' in st.session_state:
+            del st.session_state.filiais_opcao1_selecionadas
+    else:
+        # Manter seleção anterior ou usar padrão
+        filiais_default = st.session_state.get('filiais_opcao1_selecionadas', top_3_filiais)
+
+    filiais_selecionadas = st.multiselect(
+        "🏢 Selecione as filiais para comparação:",
+        options=todas_filiais,
+        default=filiais_default,
+        help="Por padrão, as 3 filiais com maior custo total estão selecionadas. Os filtros superiores resetam esta seleção.",
+        key='filiais_opcao1_selecionadas'
+    )
+
+    if not filiais_selecionadas:
+        st.warning("Selecione pelo menos uma filial para exibir os cards comparativos.")
+        dados_filiais_filtradas = dados_filiais.head(0)  # DataFrame vazio
+    else:
+        dados_filiais_filtradas = dados_filiais[dados_filiais['filial'].isin(filiais_selecionadas)]
+
+    # Determinar número de colunas baseado no número de filiais selecionadas
+    num_filiais = len(dados_filiais_filtradas)
+    if num_filiais <= 4:
+        cols_cards = st.columns(num_filiais) if num_filiais > 0 else st.columns(1)
+    else:
+        # Para mais de 4 filiais, usar 4 colunas e quebrar linha
+        cols_cards = st.columns(4)
+
+    # Criar cards para as filiais selecionadas
+    for i, (idx, filial_data) in enumerate(dados_filiais_filtradas.iterrows()):
+        # Determinar qual coluna usar baseado no número de filiais
+        if num_filiais <= 4:
+            # Se há 4 ou menos filiais, usar todas as colunas disponíveis
+            coluna_atual = i
+        else:
+            # Se há mais de 4 filiais, usar módulo para quebrar linha
+            coluna_atual = i % 4
+
+        # Primeira linha (primeiras 4 filiais ou todas se <= 4)
+        if i < 4:
+            with cols_cards[coluna_atual]:
+                filial_nome = filial_data['filial']
+
+                # Determinar cor do card baseado na performance (custo/km)
+                if filial_data['custo_por_km'] <= dados_filiais_filtradas['custo_por_km'].quantile(0.33):
+                    cor_card = 'card-green'  # Eficiente
+                elif filial_data['custo_por_km'] <= dados_filiais_filtradas['custo_por_km'].quantile(0.66):
+                    cor_card = 'card-yellow'  # Médio
+                else:
+                    cor_card = 'card-orange'  # Alto custo
+
+                # Cálculo da posição no ranking
+                posicao_ranking = i + 1
+                emoji_ranking = "🥇" if posicao_ranking == 1 else "🥈" if posicao_ranking == 2 else "🥉" if posicao_ranking == 3 else f"#{posicao_ranking}"
+
+                st.html(f"""
+<div class="custom-card {cor_card}" style="min-height: 380px;">
+    <div class="card-title">🏢 {filial_nome}</div>
+    <div class="card-value" style="font-size: 24px;">{emoji_ranking} Ranking</div>
+    <div class="card-detail" style="border-top: 1px solid #4a4e69; padding-top: 8px;">
+        <strong>💰 Custo Total:</strong> R$ {filial_data['custo_total']:,.0f}
+    </div>
+    <div class="card-detail">
+        <strong>💸 Custo/Km:</strong> R$ {filial_data['custo_por_km']:.2f}
+    </div>
+    <div class="card-detail">
+        <strong>🚛 Veículos:</strong> {int(filial_data['num_veiculos'])}
+    </div>
+    <div class="card-detail">
+        <strong>🛣️ Total Km:</strong> {filial_data['total_km']:,.0f}
+    </div>
+    <div class="card-detail">
+        <strong>⛽ Km/L:</strong> {filial_data['eficiencia_media']:.2f}
+    </div>
+    <div class="card-detail">
+        <strong>🎫 Ticket Médio:</strong> R$ {filial_data['ticket_medio_veiculo']:,.0f}
+    </div>
+    <div class="card-detail">
+        <strong>📅 Custo/Dia:</strong> R$ {filial_data['custo_dia_util']:,.0f}
+    </div>
+</div>
+                """)
+
+    # Segunda linha se necessário (mais de 4 filiais)
+    if num_filiais > 4:
+        # Criar nova linha de colunas para as filiais restantes
+        filiais_restantes = num_filiais - 4
+        cols_cards_2 = st.columns(min(4, filiais_restantes))
+
+        for i, (idx, filial_data) in enumerate(list(dados_filiais_filtradas.iterrows())[4:]):
+            if i < len(cols_cards_2):  # Verificação de segurança
+                with cols_cards_2[i]:
+                    filial_nome = filial_data['filial']
+
+                    if filial_data['custo_por_km'] <= dados_filiais_filtradas['custo_por_km'].quantile(0.33):
+                        cor_card = 'card-green'
+                    elif filial_data['custo_por_km'] <= dados_filiais_filtradas['custo_por_km'].quantile(0.66):
+                        cor_card = 'card-yellow'
+                    else:
+                        cor_card = 'card-orange'
+
+                    posicao_ranking = i + 5  # +5 porque esta é a segunda linha
+                    emoji_ranking = f"#{posicao_ranking}"
+
+                    st.html(f"""
+<div class="custom-card {cor_card}" style="min-height: 380px;">
+    <div class="card-title">🏢 {filial_nome}</div>
+    <div class="card-value" style="font-size: 24px;">{emoji_ranking} Ranking</div>
+    <div class="card-detail" style="border-top: 1px solid #4a4e69; padding-top: 8px;">
+        <strong>💰 Custo Total:</strong> R$ {filial_data['custo_total']:,.0f}
+    </div>
+    <div class="card-detail">
+        <strong>💸 Custo/Km:</strong> R$ {filial_data['custo_por_km']:.2f}
+    </div>
+    <div class="card-detail">
+        <strong>🚛 Veículos:</strong> {int(filial_data['num_veiculos'])}
+    </div>
+    <div class="card-detail">
+        <strong>🛣️ Total Km:</strong> {filial_data['total_km']:,.0f}
+    </div>
+    <div class="card-detail">
+        <strong>⛽ Km/L:</strong> {filial_data['eficiencia_media']:.2f}
+    </div>
+    <div class="card-detail">
+        <strong>🎫 Ticket Médio:</strong> R$ {filial_data['ticket_medio_veiculo']:,.0f}
+    </div>
+    <div class="card-detail">
+        <strong>📅 Custo/Dia:</strong> R$ {filial_data['custo_dia_util']:,.0f}
+    </div>
+</div>
+                    """)
+
+    # --- ANÁLISE POR GRUPO DE VEÍCULOS ---
+    st.markdown("### 🚗 **Análise por Grupo de Veículos**")
+    st.markdown("*Análise consolidada baseada nos filtros selecionados*")
+
+    if 'grupocorreto' in df_filtrado.columns:
+        # Calcular dados por grupo de veículos (consolidado)
+        dados_grupo_consolidado = df_filtrado.groupby('grupocorreto').agg(
+            custo_total=('custo_frota_total', 'sum'),
+            total_km=('total_km', 'sum'),
+            num_veiculos=('Placa', 'nunique'),
+            eficiencia_media=('media_km_litro_ajustado', 'mean'),
+            custo_manutencao=('custo_manutencao_geral', 'sum'),
+            custo_combustivel=('custo_combustivel', 'sum')
+        ).reset_index()
+
+        # Calcular métricas derivadas
+        dados_grupo_consolidado['custo_por_km'] = dados_grupo_consolidado['custo_total'] / dados_grupo_consolidado['total_km']
+        dados_grupo_consolidado['ticket_medio'] = dados_grupo_consolidado['custo_total'] / dados_grupo_consolidado['num_veiculos']
+        dados_grupo_consolidado['km_medio_veiculo'] = dados_grupo_consolidado['total_km'] / dados_grupo_consolidado['num_veiculos']
+        dados_grupo_consolidado = dados_grupo_consolidado.replace([np.inf, -np.inf], 0).fillna(0)
+        dados_grupo_consolidado = dados_grupo_consolidado.sort_values('custo_total', ascending=False)
+
+        # Cards resumo por grupo (Top 4)
+        st.markdown("#### 📊 **Top 4 Grupos por Custo Total**")
+
+        top_4_grupos = dados_grupo_consolidado.head(4)
+        cols_grupos = st.columns(4)
+
+        for i, (idx, grupo_data) in enumerate(top_4_grupos.iterrows()):
+            with cols_grupos[i]:
+                # Determinar cor baseada na eficiência de custo/km
+                if grupo_data['custo_por_km'] <= dados_grupo_consolidado['custo_por_km'].quantile(0.33):
+                    cor_card = 'card-green'
+                elif grupo_data['custo_por_km'] <= dados_grupo_consolidado['custo_por_km'].quantile(0.66):
+                    cor_card = 'card-yellow'
+                else:
+                    cor_card = 'card-orange'
+
+                posicao = i + 1
+                emoji_pos = "🥇" if posicao == 1 else "🥈" if posicao == 2 else "🥉" if posicao == 3 else "🏆"
+
+                st.html(f"""
+<div class="custom-card {cor_card}" style="min-height: 300px;">
+    <div class="card-title">🚗 {grupo_data['grupocorreto']}</div>
+    <div class="card-value" style="font-size: 20px;">{emoji_pos} #{posicao}</div>
+    <div class="card-detail" style="border-top: 1px solid #4a4e69; padding-top: 8px;">
+        <strong>💰 Custo Total:</strong> R$ {grupo_data['custo_total']:,.0f}
+    </div>
+    <div class="card-detail">
+        <strong>💸 Custo/Km:</strong> R$ {grupo_data['custo_por_km']:.2f}
+    </div>
+    <div class="card-detail">
+        <strong>🚛 Veículos:</strong> {int(grupo_data['num_veiculos'])}
+    </div>
+    <div class="card-detail">
+        <strong>🛣️ Total Km:</strong> {grupo_data['total_km']:,.0f}
+    </div>
+    <div class="card-detail">
+        <strong>⛽ Km/L:</strong> {grupo_data['eficiencia_media']:.2f}
+    </div>
+    <div class="card-detail">
+        <strong>🎫 Ticket Médio:</strong> R$ {grupo_data['ticket_medio']:,.0f}
+    </div>
+</div>
+                """)
+
+
+        # Análise Consolidada por Grupo de Veículo
+        st.markdown("#### 📊 **Análise Consolidada por Grupo de Veículo**")
+
+        # Cards de métricas resumo usando nosso CSS
+        total_grupos = len(dados_grupo_consolidado)
+        custo_total_geral = dados_grupo_consolidado['custo_total'].sum()
+        grupo_mais_custoso = dados_grupo_consolidado.iloc[0]['grupocorreto']
+        eficiencia_media_geral = dados_grupo_consolidado['eficiencia_media'].mean()
+
+        cols_resumo = st.columns(4)
+
+        with cols_resumo[0]:
+            st.html(f"""
+<div class="custom-card card-blue">
+    <div class="card-title">📈 Total de Grupos</div>
+    <div class="card-value">{total_grupos}</div>
+    <div class="card-detail" style="border-top: 1px solid #4a4e69; padding-top: 8px;">
+        <strong>Categorias analisadas</strong> no período
+    </div>
+</div>
+            """)
+
+        with cols_resumo[1]:
+            st.html(f"""
+<div class="custom-card card-green">
+    <div class="card-title">💰 Custo Total Geral</div>
+    <div class="card-value">R$ {custo_total_geral:,.0f}</div>
+    <div class="card-detail" style="border-top: 1px solid #4a4e69; padding-top: 8px;">
+        <strong>Soma consolidada</strong> de todos os grupos
+    </div>
+</div>
+            """)
+
+        with cols_resumo[2]:
+            st.html(f"""
+<div class="custom-card card-orange">
+    <div class="card-title">🥇 Grupo Mais Custoso</div>
+    <div class="card-value" style="font-size: 24px;">{grupo_mais_custoso}</div>
+    <div class="card-detail" style="border-top: 1px solid #4a4e69; padding-top: 8px;">
+        <strong>Líder em custos</strong> no período
+    </div>
+</div>
+            """)
+
+        with cols_resumo[3]:
+            st.html(f"""
+<div class="custom-card card-yellow">
+    <div class="card-title">⛽ Eficiência Média</div>
+    <div class="card-value">{eficiencia_media_geral:.2f} Km/L</div>
+    <div class="card-detail" style="border-top: 1px solid #4a4e69; padding-top: 8px;">
+        <strong>Performance geral</strong> de combustível
+    </div>
+</div>
+            """)
+
+        # Filtros de controle
+        col_filtro1, col_filtro2 = st.columns([3, 1])
+
+        with col_filtro1:
+            tipo_ordenacao = st.selectbox(
+                "🎯 Ordenar tabela por:",
+                options=[
+                    ("custo_total", "💰 Custo Total (Maior → Menor)"),
+                    ("custo_por_km", "💸 Custo/Km (Menor → Maior)"),
+                    ("eficiencia_media", "⛽ Eficiência (Maior → Menor)"),
+                    ("num_veiculos", "🚛 Número de Veículos (Maior → Menor)")
+                ],
+                format_func=lambda x: x[1]
+            )
+
+        with col_filtro2:
+            mostrar_top = st.selectbox(
+                "📊 Exibir:",
+                options=[("todos", "Todos"), ("5", "Top 5"), ("10", "Top 10")],
+                format_func=lambda x: x[1]
+            )
+
+        # Aplicar filtros
+        coluna_ordenacao, _ = tipo_ordenacao
+        ascending = coluna_ordenacao == "custo_por_km"
+        dados_ordenados = dados_grupo_consolidado.sort_values(coluna_ordenacao, ascending=ascending)
+
+        if mostrar_top[0] != "todos":
+            dados_ordenados = dados_ordenados.head(int(mostrar_top[0]))
+
+        # Tabela consolidada
+        tabela_grupos_display = dados_ordenados.rename(columns={
+            'grupocorreto': '🚗 Grupo de Veículo',
+            'custo_total': '💰 Custo Total',
+            'custo_por_km': '💸 Custo/Km',
+            'num_veiculos': '🚛 Veículos',
+            'total_km': '🛣️ Total Km',
+            'eficiencia_media': '⛽ Km/L',
+            'ticket_medio': '🎫 Ticket Médio'
+        })
+
+        st.dataframe(
+            tabela_grupos_display,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "💰 Custo Total": st.column_config.NumberColumn(format="R$ %.0f"),
+                "💸 Custo/Km": st.column_config.NumberColumn(format="R$ %.2f"),
+                "🚛 Veículos": st.column_config.NumberColumn(format="%d"),
+                "🛣️ Total Km": st.column_config.NumberColumn(format="%.0f"),
+                "⛽ Km/L": st.column_config.NumberColumn(format="%.2f"),
+                "🎫 Ticket Médio": st.column_config.NumberColumn(format="R$ %.0f")
+            }
+        )
+
+        # Insights com cards
+        st.markdown("##### 💡 **Insights da Análise**")
+
+        grupo_mais_eficiente = dados_grupo_consolidado.loc[dados_grupo_consolidado['custo_por_km'].idxmin()]
+        grupo_menos_eficiente = dados_grupo_consolidado.loc[dados_grupo_consolidado['custo_por_km'].idxmax()]
+        melhor_combustivel = dados_grupo_consolidado.loc[dados_grupo_consolidado['eficiencia_media'].idxmax()]
+
+        cols_insights = st.columns(3)
+
+        with cols_insights[0]:
+            st.html(f"""
+<div class="custom-card card-green">
+    <div class="card-title">🎯 Mais Eficiente</div>
+    <div class="card-value" style="font-size: 20px;">{grupo_mais_eficiente['grupocorreto']}</div>
+    <div class="card-detail" style="border-top: 1px solid #4a4e69; padding-top: 8px;">
+        <strong>💸 Custo/Km:</strong> R$ {grupo_mais_eficiente['custo_por_km']:.2f}
+    </div>
+    <div class="card-detail">
+        <strong>🚛 Veículos:</strong> {int(grupo_mais_eficiente['num_veiculos'])}
+    </div>
+</div>
+            """)
+
+        with cols_insights[1]:
+            st.html(f"""
+<div class="custom-card card-orange">
+    <div class="card-title">💸 Menos Eficiente</div>
+    <div class="card-value" style="font-size: 20px;">{grupo_menos_eficiente['grupocorreto']}</div>
+    <div class="card-detail" style="border-top: 1px solid #4a4e69; padding-top: 8px;">
+        <strong>💸 Custo/Km:</strong> R$ {grupo_menos_eficiente['custo_por_km']:.2f}
+    </div>
+    <div class="card-detail">
+        <strong>📈 Diferença:</strong> {((grupo_menos_eficiente['custo_por_km']/grupo_mais_eficiente['custo_por_km'] - 1)*100):.1f}% maior
+    </div>
+</div>
+            """)
+
+        with cols_insights[2]:
+            st.html(f"""
+<div class="custom-card card-yellow">
+    <div class="card-title">⛽ Melhor Combustível</div>
+    <div class="card-value" style="font-size: 20px;">{melhor_combustivel['grupocorreto']}</div>
+    <div class="card-detail" style="border-top: 1px solid #4a4e69; padding-top: 8px;">
+        <strong>⛽ Eficiência:</strong> {melhor_combustivel['eficiencia_media']:.2f} Km/L
+    </div>
+    <div class="card-detail">
+        <strong>💰 Custo Total:</strong> R$ {melhor_combustivel['custo_total']:,.0f}
+    </div>
+</div>
+            """)
+
+    else:
+        st.warning("⚠️ Coluna 'grupocorreto' não encontrada nos dados. Análise por grupo de veículos indisponível.")
+
+    st.markdown("---")
 
 def exibir_tendencias_mensais(df_filtrado, titulo_aba):
     """
@@ -967,9 +1790,13 @@ def calcular_kpis_operacionais(df_filtrado):
         kpis['custo_por_dia_util'] = total_custo / total_dias_uteis_real if total_dias_uteis_real > 0 else 0
 
     # --- KPI 7 & 8: Análise Consolidada de Contratos (Custo e Atividade) ---
-    if ('contrato_agrupado' in df_filtrado.columns and 
-        'custo_frota_total' in df_filtrado.columns and 
+    if ('contrato_agrupado' in df_filtrado.columns and
+        'custo_frota_total' in df_filtrado.columns and
         'Placa' in df_filtrado.columns):
+
+        # --- Diversidade de Contratos ---
+        contratos_unicos = df_filtrado['contrato_agrupado'].nunique()
+        kpis['diversidade_categorias'] = contratos_unicos
 
         # --- Análise por Custo ---
         custo_por_contrato = df_filtrado.groupby('contrato_agrupado')['custo_frota_total'].sum().sort_values(ascending=False)
@@ -1058,402 +1885,121 @@ def calcular_kpis_operacionais(df_filtrado):
             return kpis
 
 def exibir_kpis_operacionais_visao_geral(df_filtrado):
-    """Exibe KPIs operacionais específicos para a aba Visão Geral"""
-    
+    """Exibe KPIs operacionais organizados por categorias com layout padronizado"""
+
     kpis = calcular_kpis_operacionais(df_filtrado)
-    
+
     st.markdown("---")
-    
-    st.subheader("KPIs Operacionais - Visão Geral")
 
-    # --- CSS ADAPTATIVO COM BORDAS COLORIDAS E ALTURAS FIXAS POR LINHA ---
-    st.markdown("""
-    <style>
-    /* Variáveis para tema inverso */
-    :root {
-        --card-bg-color: #ffffff; /* BRANCO no tema claro */
-        --card-text-color: #000000;
-        --card-detail-color: #374151;
-        --secondary-bg-color: #f9fafb;
-        --gray-80: #e5e7eb;
-    }
+    # === CATEGORIA 1: INDICADORES FINANCEIROS (Amarelo) ===
+    st.markdown("### 💰 **Indicadores Financeiros**")
+    cols_financeiros = st.columns(5)
 
-    /* Para Streamlit tema escuro */
-    [data-theme="dark"] {
-        --card-bg-color: #000000; /* PRETO no tema escuro */
-        --card-text-color: #ffffff;
-        --card-detail-color: #9ca3af;
-        --secondary-bg-color: #1f2937;
-        --gray-80: #374151;
-    }
+    with cols_financeiros[0]:
+        valor_custo_km = kpis.get('custo_por_km', 0)
+        st.html(f"""
+<div class="custom-card card-yellow">
+    <div class="card-title">💰 Custo por Km</div>
+    <div class="card-value">R$ {valor_custo_km:.2f}</div>
+    <div class="card-detail" style="border-top: 1px solid #4a4e69; padding-top: 8px;">
+        <strong>Base:</strong> Custo total / Km rodados
+    </div>
+</div>
+        """)
 
-    /* Estilo Base para cards */
-    .custom-card {
-        background-color: var(--card-bg-color);
-        border-radius: 16px;
-        padding: 20px; /* Reduzido um pouco para dar mais espaço interno */
-        margin-bottom: 20px; /* Ajustado para consistência */
-        border: 3px solid;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-        transition: all 0.3s ease;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-        box-sizing: border-box; /* Garante que padding e border sejam incluídos na altura */
-    }
-    
-    .custom-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 8px 16px rgba(0,0,0,0.15);
-    }
+    with cols_financeiros[1]:
+        valor_custo_dia = kpis.get('custo_por_dia_util', 0)
+        dias_operacao = kpis.get('total_dias_operacao', 0)
+        st.html(f"""
+<div class="custom-card card-yellow">
+    <div class="card-title">📅 Custo/Dia Útil</div>
+    <div class="card-value">R$ {valor_custo_dia:,.2f}</div>
+    <div class="card-detail" style="border-top: 1px solid #4a4e69; padding-top: 8px;">
+        <strong>Dias úteis no período:</strong> {dias_operacao}
+    </div>
+</div>
+        """)
 
-    /* Bordas coloridas */
-    .card-blue { border-color: #3b82f6; }
-    .card-green { border-color: #22c55e; }
-    .card-orange { border-color: #f97316; }
-    .card-yellow { border-color: #eab308; }
+    with cols_financeiros[2]:
+        valor_manutencao_km = kpis.get('media_manutencao_por_km', 0)
+        st.html(f"""
+<div class="custom-card card-yellow">
+    <div class="card-title">🔧 Manutenção/Km</div>
+    <div class="card-value">R$ {valor_manutencao_km:.2f}</div>
+    <div class="card-detail" style="border-top: 1px solid #4a4e69; padding-top: 8px;">
+        <strong>Base:</strong> Custo de manutenção por Km rodado
+    </div>
+</div>
+        """)
 
-    /* Estilos de Texto dentro dos cards */
-    .card-title {
-        font-size: 15px; /* Ligeiramente reduzido para caber melhor */
-        font-weight: bold;
-        color: var(--card-detail-color);
-        margin-bottom: 12px; /* Ajustado */
-        text-transform: uppercase;
-        height: 36px; /* Altura fixa para títulos de 2 linhas */
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        text-align: center;
-        line-height: 1.2; /* Espaçamento entre linhas */
-        overflow: hidden; /* Garante que não transborde */
-    }
-    .card-value {
-        font-size: 30px; /* Ligeiramente reduzido */
-        font-weight: bold;
-        margin-bottom: 8px; /* Ajustado */
-        line-height: 1.1;
-        text-align: center;
-        flex-grow: 1; /* Permite que o valor ocupe o espaço restante */
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-    .card-value .unit { /* Para 'Km/L' ou 'Km' */
-        font-size: 16px; /* Ajustado */
-        font-weight: normal;
-        margin-left: 5px;
-        color: var(--card-detail-color); /* Unidade em cinza */
-    }
-    .card-detail {
-        font-size: 13px; /* Ligeiramente reduzido */
-        color: var(--card-detail-color);
-        margin-top: auto; /* Empurra os detalhes para o fundo */
-        text-align: center;
-        line-height: 1.3;
-        overflow: hidden; /* Esconde o que transborda */
-        text-overflow: ellipsis; /* Adiciona "..." */
-        display: -webkit-box; /* Para controlar o número de linhas */
-        -webkit-line-clamp: 2; /* Limita a 2 linhas */
-        -webkit-box-orient: vertical;
-        height: 38px; /* Altura fixa para 2 linhas */
-    }
-    .card-detail b {
-        font-weight: bold;
-        color: var(--card-text-color); /* Títulos de detalhe mais escuros/claros */
-    }
+    with cols_financeiros[3]:
+        valor_km_medio = kpis.get('km_medio_por_veiculo', 0)
+        total_km = kpis.get('total_km_frota', 0)
+        st.html(f"""
+<div class="custom-card card-yellow">
+    <div class="card-title">🚛 Km Médio/Veículo</div>
+    <div class="card-value">{valor_km_medio:,.0f} Km</div>
+    <div class="card-detail" style="border-top: 1px solid #4a4e69; padding-top: 8px;">
+        <strong>Total Frota:</strong> {total_km:,.0f} Km
+    </div>
+</div>
+        """)
 
-    /* Cores dos valores combinando com as bordas */
-    .card-blue .card-value { color: #3b82f6; }
-    .card-green .card-value { color: #22c55e; }
-    .card-orange .card-value { color: #f97316; }
-    .card-yellow .card-value { color: #eab308; }
+    with cols_financeiros[4]:
+        eficiencia_media = kpis.get('media_km_por_litro', 0)
+        melhor_veiculo = kpis.get('melhor_eficiencia_veiculo', 'N/A')
+        melhor_valor = kpis.get('melhor_eficiencia_valor', 0)
+        st.html(f"""
+<div class="custom-card card-yellow">
+    <div class="card-title">⛽ Eficiência Combustível</div>
+    <div class="card-value">{eficiencia_media:.2f} Km/L</div>
+    <div class="card-detail" style="border-top: 1px solid #4a4e69; padding-top: 8px;">
+        <strong>📈 Melhor:</strong> {melhor_veiculo} ({melhor_valor:.2f})
+    </div>
+</div>
+        """)
 
-    /* ALTURAS FIXAS PARA CADA LINHA DE CARDS */
-    .kpi-row-1 {
-        min-height: 180px; /* Altura da primeira linha */
-        height: 180px;
-        max-height: 180px;
-    }
-    .kpi-row-2 {
-        min-height: 160px; /* Altura da segunda linha */
-        height: 160px;
-        max-height: 160px;
-    }
-    .kpi-row-3 {
-        min-height: 140px; /* Altura da terceira linha */
-        height: 140px;
-        max-height: 140px;
-    }
-
-    /* Ajustes responsivos */
-    @media (max-width: 768px) {
-        .custom-card { padding: 15px; margin-bottom: 10px; }
-        .card-title { font-size: 14px; height: 32px; margin-bottom: 8px;}
-        .card-value { font-size: 26px; margin-bottom: 5px;}
-        .card-value .unit { font-size: 14px; }
-        .card-detail { font-size: 12px; height: 36px; -webkit-line-clamp: 2;}
-
-        .kpi-row-1 { min-height: 160px; height: 160px; max-height: 160px; }
-        .kpi-row-2 { min-height: 140px; height: 140px; max-height: 140px; }
-        .kpi-row-3 { min-height: 120px; height: 120px; max-height: 120px; }
-    }
-
-    </style>
-    """, unsafe_allow_html=True)
-
-    # --- Primeira linha - KPIs principais ---
-    cols1 = st.columns(4)
-    with cols1[0]:
-        if 'media_km_por_litro' in kpis:
-            st.markdown(f"""
-            <div class="custom-card card-blue kpi-row-1">
-                <div class="card-title">⛽ Eficiência Combustível</div>
-                <div class="card-value">{kpis['media_km_por_litro']:.2f} <span class="unit">Km/L</span></div>
-                <div class="card-detail">
-                    📈 Melhor: {kpis.get('melhor_eficiencia_veiculo', 'N/A')} ({kpis.get('melhor_eficiencia_valor', 0):.2f})<br>
-                    📉 Pior: {kpis.get('pior_eficiencia_veiculo', 'N/A')} ({kpis.get('pior_eficiencia_valor', 0):.2f})
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.markdown("""
-            <div class="custom-card card-blue kpi-row-1">
-                <div class="card-title">⛽ Eficiência Combustível</div>
-                <div class="card-value">N/A</div>
-                <div class="card-detail">Dados não disponíveis</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-
-    with cols1[1]:
-        if 'custo_por_km' in kpis:
-            st.markdown(f"""
-            <div class="custom-card card-blue kpi-row-1">
-                <div class="card-title">💰 Custo por Km</div>
-                <div class="card-value">R$ {kpis['custo_por_km']:.2f}</div>
-                <div class="card-detail">Custo total / Km rodados</div>
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.markdown("""
-            <div class="custom-card card-blue kpi-row-1">
-                <div class="card-title">💰 Custo por Km</div>
-                <div class="card-value">N/A</div>
-                <div class="card-detail">Dados não disponíveis</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-    with cols1[2]:
-        if 'km_medio_por_veiculo' in kpis:
-            st.markdown(f"""
-            <div class="custom-card card-blue kpi-row-1">
-                <div class="card-title">🚛 Km Médio/Veículo</div>
-                <div class="card-value">{kpis['km_medio_por_veiculo']:,.0f} <span class="unit">Km</span></div>
-                <div class="card-detail">
-                    <b>Total Frota:</b> {kpis.get('total_km_frota', 0):,.0f} Km<br>
-                    <b>Top Veículo:</b> {kpis.get('veiculo_mais_rodou', 'N/A')}
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.markdown("""
-            <div class="custom-card card-blue kpi-row-1">
-                <div class="card-title">🚛 Km Médio/Veículo</div>
-                <div class="card-value">N/A</div>
-                <div class="card-detail">Dados não disponíveis</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-    with cols1[3]:
-        if 'custo_por_dia_util' in kpis:
-            st.markdown(f"""
-            <div class="custom-card card-blue kpi-row-1">
-                <div class="card-title">📅 Custo/Dia Útil</div>
-                <div class="card-value">R$ {kpis['custo_por_dia_util']:,.2f}</div>
-                <div class="card-detail"><b>Dias úteis no período:</b> {kpis.get('total_dias_operacao', 0)}</div>
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.markdown("""
-            <div class="custom-card card-blue kpi-row-1">
-                <div class="card-title">📅 Custo/Dia Útil</div>
-                <div class="card-value">N/A</div>
-                <div class="card-detail">Dados não disponíveis</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-    # --- Segunda linha - KPIs de performance ---
-    cols2 = st.columns(3)
-        # --- CARD DE ROTEIROS REMOVIDO E SUBSTITUÍDO ---
-    with cols2[0]:
-        # NOVO CARD: Total de Categorias de Contrato
-        if 'contrato_agrupado' in df_filtrado.columns:
-            total_categorias = df_filtrado['contrato_agrupado'].nunique()
-            st.markdown(f"""
-            <div class="custom-card card-blue kpi-row-2">
-                <div class="card-title">📑 Diversidade de Contratos</div>
-                <div class="card-value">{total_categorias}</div>
-                <div class="card-detail">Categorias de contrato ativas no período</div>
-            </div>
-            """, unsafe_allow_html=True)
-        else: 
-            st.markdown("""
-            <div class="custom-card card-blue kpi-row-2">
-                <div class="card-title">📑 Diversidade de Contratos</div>
-                <div class="card-value">N/A</div>
-                <div class="card-detail">Dados não disponíveis</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-    with cols2[1]:
-        if 'regiao_mais_eficiente' in kpis:
-            st.markdown(f"""
-            <div class="custom-card card-blue kpi-row-2">
-                <div class="card-title">🌍 Eficiência Regional</div>
-                <div class="card-value">{kpis['regiao_mais_eficiente']}</div>
-                <div class="card-detail">
-                    <b>Custo por Km:</b> R$ {kpis['custo_regiao_mais_eficiente']:.2f} / Km
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            # Card para quando não há dados
-            st.markdown("""
-            <div class="custom-card card-blue kpi-row-2">
-                <div class="card-title">🌍 Eficiência Regional</div>
-                <div class="card-value">N/A</div>
-                <div class="card-detail">Dados não disponíveis</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-    with cols2[2]:
-        if 'contrato_maior_custo' in kpis:
-            st.markdown(f"""
-            <div class="custom-card card-blue kpi-row-2">
-                <div class="card-title">📋 Contrato de Maior Custo</div>
-                <div class="card-value">{kpis['contrato_maior_custo']}</div>
-                <div class="card-detail"><b>Valor:</b> R$ {kpis['custo_contrato_maior']:,.2f}</div>
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.markdown("""
-            <div class="custom-card card-blue kpi-row-2">
-                <div class="card-title">📋 Contrato de Maior Custo</div>
-                <div class="card-value">N/A</div>
-                <div class="card-detail">Dados não disponíveis</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-    # --- Terceira linha - KPIs adicionais ---
-    cols3 = st.columns(2)
-    with cols3[0]:
-        if 'media_manutencao_por_km' in kpis:
-            st.markdown(f"""
-            <div class="custom-card card-blue kpi-row-3">
-                <div class="card-title">🔧 Manutenção/Km</div>
-                <div class="card-value">R$ {kpis['media_manutencao_por_km']:.2f}</div>
-                <div class="card-detail">Custo de manutenção por Km rodado</div>
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.markdown("""
-            <div class="custom-card card-blue kpi-row-3">
-                <div class="card-title">🔧 Manutenção/Km</div>
-                <div class="card-value">N/A</div>
-                <div class="card-detail">Dados não disponíveis</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-    with cols3[1]:
-        
-        if 'contrato_mais_ativo' in kpis:
-    
-
-            st.markdown(f"""
-            <div class="custom-card card-blue kpi-row-3">
-                <div class="card-title">📊 Contrato Mais Ativo</div>
-                <div class="card-value" style="font-size: 20px; line-height: 1.2;">{kpis['contrato_mais_ativo']}</div>
-                <div class="card-detail" style="font-weight: bold;">
-                    Utilizou {int(kpis['num_veiculos_mais_ativo'])} veículos
-                </div>
-                <div class="card-detail">
-                    {kpis.get('percentual_frota_ativa', '')}
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            # Caso não haja dados para calcular
-            st.markdown("""
-            <div class="custom-card card-blue kpi-row-3">
-                <div class="card-title">📊 Contrato Mais Ativo</div>
-                <div class="card-value">N/A</div>
-                <div class="card-detail">Dados não disponíveis</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-    return kpis
-
-
-    """
-    Recebe um dicionário com dados já calculados e exibe os componentes visuais.
-    """
-    st.subheader("💡 Detalhamento dos Custos por Macro Categoria")
-    
-    # Extrai os valores do dicionário
-    custo_manutencao_total = resultados['custo_manutencao_total']
-    custo_combustivel_total = resultados['custo_combustivel_total']
-    custo_geral_total = resultados['custo_geral_total']
-    df_grafico_geral = resultados['df_grafico_geral']
-    df_detalhado = resultados['df_detalhado_veiculos']
-
-    # Métricas
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("🛠️ Manutenção", f"R$ {custo_manutencao_total:,.2f}", 
-                  f"{custo_manutencao_total / custo_geral_total * 100:.1f}%" if custo_geral_total > 0 else "0%")
-    with col2:
-        st.metric("⛽ Combustível", f"R$ {custo_combustivel_total:,.2f}",
-                  f"{custo_combustivel_total / custo_geral_total * 100:.1f}%" if custo_geral_total > 0 else "0%")
-    with col3:
-        st.metric("💰 Total Geral", f"R$ {custo_geral_total:,.2f}")
-    
-    # Gráficos
-    cores_geral = ['#007bff', '#28a745']
-    mapa_cores_geral = {'Manutenção': cores_geral[0], 'Combustível': cores_geral[1]}
-    
-    g_col1, g_col2 = st.columns(2)
-    with g_col1:
-        fig_pie_geral = px.pie(df_grafico_geral, names='Categoria', values='Custo', 
-                               title='Distribuição Percentual dos Custos', hole=.3, 
-                               color='Categoria', color_discrete_map=mapa_cores_geral)
-        fig_pie_geral.update_traces(textposition='outside', textinfo='percent+label')
-        st.plotly_chart(fig_pie_geral, use_container_width=True)
-    
-    with g_col2:
-        fig_bar_geral = px.bar(df_grafico_geral, x='Categoria', y='Custo', text_auto='.2s', 
-                               title='Comparativo de Custos por Macro Categoria', 
-                               color='Categoria', color_discrete_map=mapa_cores_geral)
-        fig_bar_geral.update_layout(showlegend=False)
-        st.plotly_chart(fig_bar_geral, use_container_width=True)
-    
     st.markdown("---")
-    
-    # Relatório Detalhado
-    st.subheader(f"📋 Relatório Detalhado por Veículo - {titulo_principal}")
-    
-    ordem_colunas = [col for col in ['Ranking', 'Placa', 'Modelo', 'Marca', 'grupocorreto', 
-                                     'Região', 'Filial', 'Tipo Combustível', 'Tipo de Rota', 
-                                     'Contrato', 'Roteiro Principal', 'Motorista Principal', 
-                                     'Valor Comb.', 'Arla', 'Manutenção em Geral', 
-                                     'Rodas / Pneus', 'Lataria e Pintura', 'Custo Total'] if col in df_detalhado.columns]
-    
-    st.dataframe(df_detalhado[ordem_colunas], hide_index=True, use_container_width=True,
-                 column_config={
-                     "Custo Total": st.column_config.NumberColumn(format="R$ %.2f"),
-                     "Valor Comb.": st.column_config.NumberColumn(format="R$ %.2f"),
-                     "Arla": st.column_config.NumberColumn(format="R$ %.2f"),
-                     "Manutenção em Geral": st.column_config.NumberColumn(format="R$ %.2f"),
-                     "Rodas / Pneus": st.column_config.NumberColumn(format="R$ %.2f"),
-                     "Lataria e Pintura": st.column_config.NumberColumn(format="R$ %.2f")
-                 })
+
+    # === CATEGORIA 2: INDICADORES DE CONTRATOS (Azul) ===
+    st.markdown("### 📋 **Indicadores de Contratos**")
+    cols_contratos = st.columns(3)
+
+    with cols_contratos[0]:
+        total_categorias = kpis.get('diversidade_categorias', 0)
+        st.html(f"""
+<div class="custom-card card-blue">
+    <div class="card-title">📑 Diversidade de Contratos</div>
+    <div class="card-value">{total_categorias}</div>
+    <div class="card-detail" style="border-top: 1px solid #4a4e69; padding-top: 8px;">
+        <strong>Base:</strong> Categorias de contrato ativas no período
+    </div>
+</div>
+        """)
+
+    with cols_contratos[1]:
+        contrato_maior = kpis.get('contrato_maior_custo', 'N/A')
+        custo_maior = kpis.get('custo_contrato_maior', 0)
+        st.html(f"""
+<div class="custom-card card-blue">
+    <div class="card-title">📋 Contrato de Maior Custo</div>
+    <div class="card-value">{contrato_maior}</div>
+    <div class="card-detail" style="border-top: 1px solid #4a4e69; padding-top: 8px;">
+        <strong>Valor:</strong> R$ {custo_maior:,.2f}
+    </div>
+</div>
+        """)
+
+    with cols_contratos[2]:
+        contrato_ativo = kpis.get('contrato_mais_ativo', 'N/A')
+        num_veiculos_ativo = kpis.get('num_veiculos_mais_ativo', 0)
+        st.html(f"""
+<div class="custom-card card-blue">
+    <div class="card-title">📊 Contrato Mais Ativo</div>
+    <div class="card-value">{contrato_ativo}</div>
+    <div class="card-detail" style="border-top: 1px solid #4a4e69; padding-top: 8px;">
+        <strong>Utilizou:</strong> {int(num_veiculos_ativo)} veículos
+    </div>
+</div>
+        """)
+
